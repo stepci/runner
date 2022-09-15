@@ -1,6 +1,6 @@
 {
   "name": "@stepci/runner",
-  "version": "0.1.0",
+  "version": "0.1.4",
   "description": "Step CI Runner",
   "main": "dist/index.js",
   "scripts": {

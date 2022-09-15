@@ -110,7 +110,13 @@ type WorkflowStepResult = {
   skipped?: boolean
   timestamp: number
   duration?: number
+  request?: WorkflowResultRequest
   response?: WorkflowResultResponse
+}
+
+type WorkflowResultRequest = {
+  url: string
+  method: string
 }
 
 type WorkflowResultResponse = {
@@ -184,6 +190,7 @@ export async function run (workflow: Workflow, options: object): Promise<Workflo
   let workflowResult: WorkflowResult = {
     workflow,
     result: [],
+    passed: true,
     timestamp: Date.now(),
   }
 
@@ -228,6 +235,11 @@ export async function run (workflow: Workflow, options: object): Promise<Workflo
         const res = await fetch(step.url, { method: step.method, headers: step.headers, body: step.body || undefined })
         const body = await res.text()
         const duration = Date.now() - stepResult.timestamp
+
+        stepResult.request = {
+          url: step.url,
+          method: step.method
+        }
 
         stepResult.response = {
           status: res.status,
@@ -376,6 +388,7 @@ export async function run (workflow: Workflow, options: object): Promise<Workflo
       }
     }
 
+    stepResult.duration = Date.now() - stepResult.timestamp
     workflowResult.duration = Date.now() - workflowResult.timestamp
     previous = stepResult
     workflowResult.result.push(stepResult)
