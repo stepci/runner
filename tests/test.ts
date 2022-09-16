@@ -12,9 +12,9 @@ const workflow = {
     "url": "https://{{env.host}}",
     "method": "GET",
     "check": {
-      "status": [{
-        "eq": 200
-      }]
+      "selector": {
+        "title": "Example Domain"
+      }
     }
   }]
 }

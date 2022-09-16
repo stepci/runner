@@ -1,7 +1,9 @@
 import fetch from 'node-fetch'
 import mustache from 'mustache'
-import { JSONPath } from 'jsonpath-plus'
 import xpath from 'xpath'
+import FormData from 'form-data'
+import * as cheerio from 'cheerio'
+import { JSONPath } from 'jsonpath-plus'
 import { DOMParser } from 'xmldom'
 
 type Workflow = {
@@ -19,6 +21,8 @@ type WorkflowStep = {
   headers?: WorkflowStepHeaders
   body?: string
   form?: WorkflowStepForm
+  formData?: WorkflowStepForm
+  json?: any
   graphql?: WorkflowStepGraphQL
   captures?: WorkflowStepCaptures[]
   check: WorkflowStepCheck
@@ -56,6 +60,7 @@ type WorkflowStepCheck = {
   duration?: number | WorkflowMatcher[]
   jsonpath?: WorkflowStepCheckJSONPath | WorkflowStepCheckMatcher
   xpath?: WorkflowStepCheckXPath | WorkflowStepCheckMatcher
+  selector?: WorkflowStepCheckSelector | WorkflowStepCheckMatcher
 }
 
 type WorkflowStepCheckHeaders = {
@@ -67,6 +72,10 @@ type WorkflowStepCheckJSONPath = {
 }
 
 type WorkflowStepCheckXPath = {
+  [key: string]: string
+}
+
+type WorkflowStepCheckSelector = {
   [key: string]: string
 }
 
@@ -103,7 +112,7 @@ type WorkflowResult = {
 
 type WorkflowStepResult = {
   name: string
-  checks: WorkflowResultCheck | any
+  checks: WorkflowResultCheck
   failed?: boolean
   failReason?: string
   passed?: boolean
@@ -129,6 +138,7 @@ type WorkflowResultCheck = {
   headers?: WorkflowResultCheckHeaders
   jsonpath?: WorkflowResultCheckJSONPath
   xpath?: WorkflowResultCheckXPath
+  selector?: WorkflowResultCheckSelector
   status?: WorkflowResultCheckResponse
   statusText?: WorkflowResultCheckResponse
   duration?: WorkflowResultCheckResponse
@@ -144,6 +154,10 @@ type WorkflowResultCheckJSONPath = {
 }
 
 type WorkflowResultCheckXPath = {
+  [key: string]: WorkflowResultCheckResponse
+}
+
+type WorkflowResultCheckSelector = {
   [key: string]: WorkflowResultCheckResponse
 }
 
@@ -200,39 +214,58 @@ export async function run (workflow: Workflow, options: object): Promise<Workflo
   for (let step of workflow.steps) {
     let stepResult: WorkflowStepResult = {
       name: step.name,
-      checks: [],
+      checks: {},
       timestamp: Date.now()
     }
 
     // Skip current step is the previous one failed
     if (previous && !previous.passed) {
       stepResult.passed = false
-      stepResult.passed = false
       stepResult.failReason = 'Step was skipped because previous one failed'
       stepResult.skipped = true
     } else {
       stepResult.passed = true
+      try {
+        // Parse template
+        step = JSON.parse(mustache.render(JSON.stringify(step), { captures, env: workflow.env, ...options }))
+        let requestBody: string | FormData | undefined = undefined
 
-      // Parse template
-      step = JSON.parse(mustache.render(JSON.stringify(step), { captures, env: workflow.env, ...options }))
-
-      // GraphQL
-      if (step.graphql) {
-        step.body = JSON.stringify(step.graphql)
-      }
-
-      // Form Data
-      if (step.form) {
-        const formData = new URLSearchParams()
-        for (const key in step.form) {
-          formData.append(key, step.form[key])
+        // Body
+        if (step.body) {
+          requestBody = step.body
         }
 
-        step.body = formData.toString()
-      }
+        //  JSON
+        if (step.json) {
+          requestBody = JSON.stringify(step.json)
+        }
 
-      try {
-        const res = await fetch(step.url, { method: step.method, headers: step.headers, body: step.body || undefined })
+        // GraphQL
+        if (step.graphql) {
+          requestBody = JSON.stringify(step.graphql)
+        }
+
+        // Form Data
+        if (step.form) {
+          const formData = new URLSearchParams()
+          for (const key in step.form) {
+            formData.append(key, step.form[key])
+          }
+
+          requestBody = formData.toString()
+        }
+
+        // Multipart Form Data
+        if (step.formData) {
+          const formData = new FormData()
+          for (const key in step.form) {
+            formData.append(key, step.form[key])
+          }
+
+          requestBody = formData
+        }
+
+        const res = await fetch(step.url, { method: step.method, headers: step.headers, body: requestBody })
         const body = await res.text()
         const duration = Date.now() - stepResult.timestamp
 
@@ -267,8 +300,6 @@ export async function run (workflow: Workflow, options: object): Promise<Workflo
         }
 
         if (step.check) {
-          stepResult.checks = {}
-
           // Check headers
           if (step.check.headers){
             stepResult.checks.headers = {}
@@ -305,9 +336,11 @@ export async function run (workflow: Workflow, options: object): Promise<Workflo
         // Check JSONPath
         if (step.check.jsonpath) {
           const json = JSON.parse(body)
+          stepResult.checks.jsonpath = {}
 
           for (const path in step.check.jsonpath) {
             const result = JSONPath({ path, json })
+
             stepResult.checks.jsonpath[path] = {
               expected: step.check?.jsonpath[path],
               given: result[0],
@@ -323,6 +356,8 @@ export async function run (workflow: Workflow, options: object): Promise<Workflo
 
         // Check XPath
         if (step.check.xpath) {
+          stepResult.checks.xpath = {}
+
           for (const path in step.check.xpath) {
             const dom = new DOMParser().parseFromString(body)
             const result = xpath.select(path, dom)
@@ -332,7 +367,29 @@ export async function run (workflow: Workflow, options: object): Promise<Workflo
               given: result.length > 0 ? (result[0] as any).firstChild.data : undefined,
               passed: check(result.length > 0 ? (result[0] as any).firstChild.data : undefined, step.check.xpath[path])
             }
+
             if (!stepResult.checks.xpath[path].passed) {
+              workflowResult.passed = false
+              stepResult.passed = false
+            }
+          }
+        }
+
+        // Check HTML5 Selector
+        if (step.check.selector) {
+          stepResult.checks.selector = {}
+
+          const dom = cheerio.load(body)
+          for (const selector in step.check.selector) {
+            const result = dom(selector).html()
+
+            stepResult.checks.selector[selector] = {
+              expected: step.check.selector[selector],
+              given: result,
+              passed: check(result, step.check.selector[selector])
+            }
+
+            if (!stepResult.checks.selector[selector].passed) {
               workflowResult.passed = false
               stepResult.passed = false
             }
