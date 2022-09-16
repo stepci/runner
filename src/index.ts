@@ -5,6 +5,7 @@ import FormData from 'form-data'
 import * as cheerio from 'cheerio'
 import { JSONPath } from 'jsonpath-plus'
 import { DOMParser } from 'xmldom'
+import { compileExpression } from 'filtrex'
 
 type Workflow = {
   version: string
@@ -16,6 +17,7 @@ type Workflow = {
 type WorkflowStep = {
   id?: string
   name: string
+  if?: string
   url: string
   method: string
   headers?: WorkflowStepHeaders
@@ -201,6 +203,11 @@ function check (given: any, expected: WorkflowMatcher[] | any) : boolean {
   return given === expected
 }
 
+function checkCondition (expression: string, captures: WorkflowStepCaptureStorage) {
+  const filter = compileExpression(expression)
+  return filter({...captures})
+}
+
 export async function run (workflow: Workflow, options: object): Promise<WorkflowResult> {
   let workflowResult: WorkflowResult = {
     workflow,
@@ -224,6 +231,8 @@ export async function run (workflow: Workflow, options: object): Promise<Workflo
     if (previous && !previous.passed) {
       stepResult.passed = false
       stepResult.failReason = 'Step was skipped because previous one failed'
+      stepResult.skipped = true
+    } else if (step.if && !checkCondition(step.if, captures)) {
       stepResult.skipped = true
     } else {
       try {

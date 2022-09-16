@@ -26,6 +26,7 @@
   "homepage": "https://github.com/StepCI/runner#readme",
   "dependencies": {
     "cheerio": "^1.0.0-rc.12",
+    "filtrex": "^3.0.0",
     "form-data": "^4.0.0",
     "jsonpath-plus": "^7.2.0",
     "mustache": "^4.2.0",
