@@ -46,6 +46,7 @@ type WorkflowStepCaptures = {
   xpath?: string
   jsonpath?: string
   header?: string
+  selector?: string
 }
 
 type WorkflowStepCaptureStorage = {
@@ -215,7 +216,8 @@ export async function run (workflow: Workflow, options: object): Promise<Workflo
     let stepResult: WorkflowStepResult = {
       name: step.name,
       checks: {},
-      timestamp: Date.now()
+      timestamp: Date.now(),
+      passed: true
     }
 
     // Skip current step is the previous one failed
@@ -224,7 +226,6 @@ export async function run (workflow: Workflow, options: object): Promise<Workflo
       stepResult.failReason = 'Step was skipped because previous one failed'
       stepResult.skipped = true
     } else {
-      stepResult.passed = true
       try {
         // Parse template
         step = JSON.parse(mustache.render(JSON.stringify(step), { captures, env: workflow.env, ...options }))
@@ -265,9 +266,9 @@ export async function run (workflow: Workflow, options: object): Promise<Workflo
           requestBody = formData
         }
 
+        const requestDuration = Date.now()
         const res = await fetch(step.url, { method: step.method, headers: step.headers, body: requestBody })
         const body = await res.text()
-        const duration = Date.now() - stepResult.timestamp
 
         stepResult.request = {
           url: step.url,
@@ -277,9 +278,10 @@ export async function run (workflow: Workflow, options: object): Promise<Workflo
         stepResult.response = {
           status: res.status,
           statusText: res.statusText,
-          duration
+          duration: Date.now() - requestDuration
         }
 
+        // Captures
         if (step.captures) {
           step.captures.forEach((capture) => {
             if (capture.jsonpath) {
@@ -295,6 +297,11 @@ export async function run (workflow: Workflow, options: object): Promise<Workflo
 
             if (capture.header) {
               captures[capture.name] = res.headers.get(capture.header)
+            }
+
+            if (capture.selector) {
+              const dom = cheerio.load(body)
+              captures[capture.name] = dom(capture.selector).html()
             }
           })
         }
@@ -378,8 +385,8 @@ export async function run (workflow: Workflow, options: object): Promise<Workflo
         // Check HTML5 Selector
         if (step.check.selector) {
           stepResult.checks.selector = {}
-
           const dom = cheerio.load(body)
+
           for (const selector in step.check.selector) {
             const result = dom(selector).html()
 
@@ -428,8 +435,8 @@ export async function run (workflow: Workflow, options: object): Promise<Workflo
         if (step.check.duration) {
           stepResult.checks.duration = {
             expected: step.check.duration,
-            given: duration,
-            passed: check(duration, step.check.duration)
+            given: requestDuration,
+            passed: check(requestDuration, step.check.duration)
           }
 
           if (!stepResult.checks.duration.passed) {
