@@ -56,7 +56,7 @@ type WorkflowStepCaptureStorage = {
 }
 
 type WorkflowStepCheck = {
-  status?: number | string | WorkflowMatcher[]
+  status?: number | WorkflowMatcher[]
   statusText?: string | WorkflowMatcher[]
   headers?: WorkflowStepCheckHeaders | WorkflowStepCheckMatcher
   body?: string | WorkflowMatcher[]
@@ -108,9 +108,9 @@ type WorkflowMatcher = {
 type WorkflowResult = {
   workflow: Workflow
   result: WorkflowStepResult[]
-  passed?: boolean
+  passed: boolean
   timestamp: number
-  duration?: number
+  duration: number
 }
 
 type WorkflowStepResult = {
@@ -118,10 +118,10 @@ type WorkflowStepResult = {
   checks: WorkflowResultCheck
   failed?: boolean
   failReason?: string
-  passed?: boolean
+  passed: boolean
   skipped?: boolean
   timestamp: number
-  duration?: number
+  duration: number
   request?: WorkflowResultRequest
   response?: WorkflowResultResponse
 }
@@ -203,9 +203,10 @@ function check (given: any, expected: WorkflowMatcher[] | any) : boolean {
   return given === expected
 }
 
-function checkCondition (expression: string, captures: WorkflowStepCaptureStorage) {
+// Check if expression
+function checkCondition (expression: string, captures: WorkflowStepCaptureStorage): boolean {
   const filter = compileExpression(expression)
-  return filter({...captures})
+  return filter({ ...captures })
 }
 
 export async function run (workflow: Workflow, options: object): Promise<WorkflowResult> {
@@ -214,6 +215,7 @@ export async function run (workflow: Workflow, options: object): Promise<Workflo
     result: [],
     passed: true,
     timestamp: Date.now(),
+    duration: 0
   }
 
   const captures: WorkflowStepCaptureStorage = {}
@@ -224,7 +226,8 @@ export async function run (workflow: Workflow, options: object): Promise<Workflo
       name: step.name,
       checks: {},
       timestamp: Date.now(),
-      passed: true
+      passed: true,
+      duration: 0
     }
 
     // Skip current step is the previous one failed
@@ -462,10 +465,10 @@ export async function run (workflow: Workflow, options: object): Promise<Workflo
     }
 
     stepResult.duration = Date.now() - stepResult.timestamp
-    workflowResult.duration = Date.now() - workflowResult.timestamp
     previous = stepResult
     workflowResult.result.push(stepResult)
   }
 
- return workflowResult
+  workflowResult.duration = Date.now() - workflowResult.timestamp
+  return workflowResult
 }
