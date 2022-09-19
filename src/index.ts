@@ -342,8 +342,8 @@ export async function run (workflow: Workflow, options: object): Promise<Workflo
         if (step.check.body) {
           stepResult.checks.body = {
             expected: step.check.body,
-            given: body,
-            passed: check(body, step.check.body)
+            given: body.trim(),
+            passed: check(body.trim(), step.check.body)
           }
 
           if (!stepResult.checks.body.passed) {
