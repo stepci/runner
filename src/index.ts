@@ -278,9 +278,10 @@ export async function run (workflow: Workflow, options: object): Promise<Workflo
           requestBody = formData
         }
 
-        const requestDuration = Date.now()
+        const requestStart = Date.now()
         const res = await fetch(step.url, { method: step.method, headers: step.headers, body: requestBody })
         const body = await res.text()
+        const requestDuration = Date.now() - requestStart
 
         stepResult.request = {
           url: step.url,
