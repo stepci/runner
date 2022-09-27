@@ -1,4 +1,5 @@
 import { run } from '../src/index'
+import { EventEmitter } from 'node:events'
 
 // Example workflow
 const workflow = {
@@ -31,4 +32,7 @@ const workflow = {
   }]
 }
 
-run(workflow, {}).then(re => console.log(JSON.stringify(re)))
+const ee = new EventEmitter()
+ee.on('done', console.log)
+
+run(workflow, { ee })

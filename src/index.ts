@@ -6,12 +6,22 @@ import * as cheerio from 'cheerio'
 import { JSONPath } from 'jsonpath-plus'
 import { DOMParser } from 'xmldom'
 import { compileExpression } from 'filtrex'
+import { EventEmitter } from 'node:events'
 
 type Workflow = {
   version: string
   name: string
   env: any
   steps: WorkflowStep[]
+}
+
+type WorkflowOptions = {
+  secrets?: WorkflowOptionsSecrets
+  ee?: EventEmitter
+}
+
+type WorkflowOptionsSecrets = {
+  [key: string]: string
 }
 
 type WorkflowStep = {
@@ -209,7 +219,7 @@ function checkCondition (expression: string, captures: WorkflowStepCaptureStorag
   return filter({ ...captures })
 }
 
-export async function run (workflow: Workflow, options: object): Promise<WorkflowResult> {
+export async function run (workflow: Workflow, options: WorkflowOptions): Promise<WorkflowResult> {
   let workflowResult: WorkflowResult = {
     workflow,
     result: [],
@@ -240,7 +250,7 @@ export async function run (workflow: Workflow, options: object): Promise<Workflo
     } else {
       try {
         // Parse template
-        step = JSON.parse(mustache.render(JSON.stringify(step), { captures, env: workflow.env, ...options }))
+        step = JSON.parse(mustache.render(JSON.stringify(step), { captures, env: workflow.env, secrets: options.secrets }))
         let requestBody: string | FormData | undefined = undefined
 
         // Body
@@ -467,9 +477,11 @@ export async function run (workflow: Workflow, options: object): Promise<Workflo
 
     stepResult.duration = Date.now() - stepResult.timestamp
     previous = stepResult
+    if (options.ee) options.ee.emit('result', stepResult)
     workflowResult.result.push(stepResult)
   }
 
   workflowResult.duration = Date.now() - workflowResult.timestamp
+  if (options.ee) options.ee.emit('done', workflowResult)
   return workflowResult
 }
