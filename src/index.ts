@@ -6,6 +6,7 @@ import * as cheerio from 'cheerio'
 import { JSONPath } from 'jsonpath-plus'
 import { DOMParser } from 'xmldom'
 import { compileExpression } from 'filtrex'
+import { flatten } from 'flat'
 import { EventEmitter } from 'node:events'
 
 type Workflow = {
@@ -39,6 +40,10 @@ type WorkflowStep = {
   graphql?: WorkflowStepGraphQL
   captures?: WorkflowStepCaptures[]
   check: WorkflowStepCheck
+}
+
+type WorkflowConditions = {
+  captures?: WorkflowStepCaptureStorage
 }
 
 type WorkflowStepHeaders = {
@@ -215,9 +220,9 @@ function check (given: any, expected: WorkflowMatcher[] | any) : boolean {
 }
 
 // Check if expression
-function checkCondition (expression: string, captures: WorkflowStepCaptureStorage): boolean {
+function checkCondition (expression: string, data: WorkflowConditions): boolean {
   const filter = compileExpression(expression)
-  return filter({ ...captures })
+  return filter(flatten(data))
 }
 
 export async function run (workflow: Workflow, options: WorkflowOptions): Promise<WorkflowResult> {
@@ -246,7 +251,7 @@ export async function run (workflow: Workflow, options: WorkflowOptions): Promis
       stepResult.passed = false
       stepResult.failReason = 'Step was skipped because previous one failed'
       stepResult.skipped = true
-    } else if (step.if && !checkCondition(step.if, captures)) {
+    } else if (step.if && !checkCondition(step.if, { captures })) {
       stepResult.skipped = true
     } else {
       try {

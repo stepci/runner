@@ -24,7 +24,7 @@ const workflow = {
   {
     "name": "GET request",
     "url": "https://{{env.host}}",
-    "if": `title == "Example Domain"`,
+    "if": `captures.title == "Example Domain"`,
     "method": "GET",
     "check": {
       "status": 200
