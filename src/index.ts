@@ -11,6 +11,7 @@ import { EventEmitter } from 'node:events'
 type Workflow = {
   version: string
   name: string
+  path?: string
   env: any
   steps: WorkflowStep[]
 }

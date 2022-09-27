@@ -33,7 +33,7 @@ const workflow = {
 run(workflow, {}).then(console.log)
 ```
 
-## Events
+### Events
 
 If you supply an `EventEmitter` as argument, you can subscribe to following events:
 
