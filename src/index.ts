@@ -311,7 +311,7 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
         if (step.files) {
           const formData = step.formData ? requestBody as FormData : new FormData()
           for (const field in step.files) {
-            formData.append(field, fs.createReadStream(step.files[field]))
+            formData.append(field, fs.readFileSync(step.files[field]))
           }
 
           requestBody = formData

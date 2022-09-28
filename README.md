@@ -10,6 +10,15 @@ npm install @stepci/runner
 
 ## Usage
 
+### Run workflow from file
+
+```js
+import { runFromFile } from '@stepci/runner'
+runFromFile('./examples/status.yml').then(console.log)
+```
+
+### Run workflow from config
+
 ```js
 import { run } from '@stepci/runner'
 
@@ -30,7 +39,7 @@ const workflow = {
   }]
 }
 
-run(workflow, {}).then(console.log)
+run(workflow).then(console.log)
 ```
 
 ### Events
