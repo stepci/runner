@@ -8,6 +8,9 @@ import { DOMParser } from 'xmldom'
 import { compileExpression } from 'filtrex'
 import { flatten } from 'flat'
 import { EventEmitter } from 'node:events'
+import crypto from 'crypto'
+import fs from 'fs'
+import yaml from 'yaml'
 
 type Workflow = {
   version: string
@@ -33,25 +36,39 @@ type WorkflowStep = {
   url: string
   method: string
   headers?: WorkflowStepHeaders
+  cookies?: WorkflowStepCookies
   body?: string
   form?: WorkflowStepForm
   formData?: WorkflowStepForm
+  files?: WorkflowStepForm
+  auth?: WorkflowStepAuth
   json?: any
   graphql?: WorkflowStepGraphQL
   captures?: WorkflowStepCaptures[]
+  followRedirects?: boolean
+  acceptCookies?: boolean
   check: WorkflowStepCheck
 }
 
 type WorkflowConditions = {
-  captures?: WorkflowStepCaptureStorage
+  captures?: WorkflowStepCapturesStorage
 }
 
 type WorkflowStepHeaders = {
   [key: string]: string
 }
 
+type WorkflowStepCookies = {
+  [key: string]: string
+}
+
 type WorkflowStepForm = {
   [key: string]: string
+}
+
+type WorkflowStepAuth = {
+  user: string
+  password: string
 }
 
 type WorkflowStepGraphQL = {
@@ -65,37 +82,32 @@ type WorkflowStepCaptures = {
   jsonpath?: string
   header?: string
   selector?: string
+  cookie?: string
 }
 
-type WorkflowStepCaptureStorage = {
+type WorkflowStepCapturesStorage = {
   [key: string]: any
 }
 
 type WorkflowStepCheck = {
   status?: number | WorkflowMatcher[]
   statusText?: string | WorkflowMatcher[]
-  headers?: WorkflowStepCheckHeaders | WorkflowStepCheckMatcher
+  headers?: WorkflowStepCheckValue | WorkflowStepCheckMatcher
   body?: string | WorkflowMatcher[]
   duration?: number | WorkflowMatcher[]
   jsonpath?: WorkflowStepCheckJSONPath | WorkflowStepCheckMatcher
-  xpath?: WorkflowStepCheckXPath | WorkflowStepCheckMatcher
-  selector?: WorkflowStepCheckSelector | WorkflowStepCheckMatcher
+  xpath?: WorkflowStepCheckValue | WorkflowStepCheckMatcher
+  selector?: WorkflowStepCheckValue | WorkflowStepCheckMatcher
+  cookies?: WorkflowStepCheckValue | WorkflowStepCheckMatcher
+  sha256?: string
 }
 
-type WorkflowStepCheckHeaders = {
+type WorkflowStepCheckValue = {
   [key: string]: string
 }
 
 type WorkflowStepCheckJSONPath = {
   [key: string]: any
-}
-
-type WorkflowStepCheckXPath = {
-  [key: string]: string
-}
-
-type WorkflowStepCheckSelector = {
-  [key: string]: string
 }
 
 type WorkflowStepCheckMatcher = {
@@ -154,36 +166,26 @@ type WorkflowResultResponse = {
 }
 
 type WorkflowResultCheck = {
-  headers?: WorkflowResultCheckHeaders
-  jsonpath?: WorkflowResultCheckJSONPath
-  xpath?: WorkflowResultCheckXPath
-  selector?: WorkflowResultCheckSelector
-  status?: WorkflowResultCheckResponse
-  statusText?: WorkflowResultCheckResponse
-  duration?: WorkflowResultCheckResponse
-  body?: WorkflowResultCheckResponse
+  headers?: WorkflowResultCheckResults
+  jsonpath?: WorkflowResultCheckResults
+  xpath?: WorkflowResultCheckResults
+  selector?: WorkflowResultCheckResults
+  cookies?: WorkflowResultCheckResults
+  status?: WorkflowResultCheckResult
+  statusText?: WorkflowResultCheckResult
+  duration?: WorkflowResultCheckResult
+  body?: WorkflowResultCheckResult
+  sha256?: WorkflowResultCheckResult
 }
 
-type WorkflowResultCheckHeaders = {
-  [key: string]: WorkflowResultCheckResponse
-}
-
-type WorkflowResultCheckJSONPath = {
-  [key: string]: WorkflowResultCheckResponse
-}
-
-type WorkflowResultCheckXPath = {
-  [key: string]: WorkflowResultCheckResponse
-}
-
-type WorkflowResultCheckSelector = {
-  [key: string]: WorkflowResultCheckResponse
-}
-
-type WorkflowResultCheckResponse = {
+type WorkflowResultCheckResult = {
   expected: any
   given: any
   passed: boolean
+}
+
+type WorkflowResultCheckResults = {
+  [key: string]: WorkflowResultCheckResult
 }
 
 // Matchers
@@ -225,7 +227,14 @@ function checkCondition (expression: string, data: WorkflowConditions): boolean 
   return filter(flatten(data))
 }
 
-export async function run (workflow: Workflow, options: WorkflowOptions): Promise<WorkflowResult> {
+// Run from workflow file
+export function runFromFile (path: string, options?: WorkflowOptions): Promise<WorkflowResult> {
+  const workflowFile = fs.readFileSync(path).toString()
+  const config = yaml.parse(workflowFile)
+  return run({ ...config, path }, options)
+}
+
+export async function run (workflow: Workflow, options?: WorkflowOptions): Promise<WorkflowResult> {
   let workflowResult: WorkflowResult = {
     workflow,
     result: [],
@@ -234,7 +243,8 @@ export async function run (workflow: Workflow, options: WorkflowOptions): Promis
     duration: 0
   }
 
-  const captures: WorkflowStepCaptureStorage = {}
+  const captures: WorkflowStepCapturesStorage = {}
+  const cookies: WorkflowStepCookies = {}
   let previous: WorkflowStepResult | undefined
 
   for (let step of workflow.steps) {
@@ -246,7 +256,7 @@ export async function run (workflow: Workflow, options: WorkflowOptions): Promis
       duration: 0
     }
 
-    // Skip current step is the previous one failed
+    // Skip current step is the previous one failed or condition was unmet
     if (previous && !previous.passed) {
       stepResult.passed = false
       stepResult.failReason = 'Step was skipped because previous one failed'
@@ -256,7 +266,10 @@ export async function run (workflow: Workflow, options: WorkflowOptions): Promis
     } else {
       try {
         // Parse template
-        step = JSON.parse(mustache.render(JSON.stringify(step), { captures, env: workflow.env, secrets: options.secrets }))
+        step = JSON.parse(mustache.render(JSON.stringify(step), { captures, env: workflow.env, secrets: options?.secrets }))
+        step.followRedirects = step.followRedirects !== undefined ? step.followRedirects : true
+        step.acceptCookies = step.acceptCookies !== undefined ? step.acceptCookies : true
+
         let requestBody: string | FormData | undefined = undefined
 
         // Body
@@ -277,8 +290,8 @@ export async function run (workflow: Workflow, options: WorkflowOptions): Promis
         // Form Data
         if (step.form) {
           const formData = new URLSearchParams()
-          for (const key in step.form) {
-            formData.append(key, step.form[key])
+          for (const field in step.form) {
+            formData.append(field, step.form[field])
           }
 
           requestBody = formData.toString()
@@ -287,16 +300,52 @@ export async function run (workflow: Workflow, options: WorkflowOptions): Promis
         // Multipart Form Data
         if (step.formData) {
           const formData = new FormData()
-          for (const key in step.form) {
-            formData.append(key, step.form[key])
+          for (const field in step.form) {
+            formData.append(field, step.form[field])
           }
 
           requestBody = formData
         }
 
+        // File uploads
+        if (step.files) {
+          const formData = step.formData ? requestBody as FormData : new FormData()
+          for (const field in step.files) {
+            formData.append(field, fs.createReadStream(step.files[field]))
+          }
+
+          requestBody = formData
+        }
+
+        // Basic Auth
+        if (step.auth) {
+          if (!step.headers) step.headers = {}
+          step.headers['Authorization'] = 'Basic ' + Buffer.from(step.auth.user + ':' + step.auth.password).toString('base64')
+        }
+
+        // Set Cookies
+        if (Object.keys(cookies).length > 0 || step.cookies) {
+          Object.assign(cookies, step.cookies)
+
+          if (!step.headers) step.headers = { cookie: '' }
+          if (!step.headers.cookie) step.headers.cookie = ''
+
+          for (const cookie in cookies) {
+            step.headers.cookie += cookie + '=' + cookies[cookie] + ' '
+          }
+        }
+
+        // Make a request
         const requestStart = Date.now()
-        const res = await fetch(step.url, { method: step.method, headers: step.headers, body: requestBody })
-        const body = await res.text()
+        const res = await fetch(step.url, {
+          method: step.method,
+          headers: step.headers,
+          body: requestBody,
+          redirect: step.followRedirects ? 'follow' : 'error'
+        })
+
+        const responseData = await res.arrayBuffer()
+        const body = await new TextDecoder().decode(responseData)
         const requestDuration = Date.now() - requestStart
 
         stepResult.request = {
@@ -307,7 +356,16 @@ export async function run (workflow: Workflow, options: WorkflowOptions): Promis
         stepResult.response = {
           status: res.status,
           statusText: res.statusText,
-          duration: Date.now() - requestDuration
+          duration: requestDuration
+        }
+
+        // Add response cookies to cookie store
+        if (step.acceptCookies && res.headers.has('Set-Cookie')) {
+          const responseCookies = res.headers.raw()['set-cookie']
+          responseCookies.forEach(cookie => {
+            const cookieValue = cookie.split('; ')[0].split('=')
+            cookies[cookieValue[0]] = cookieValue[1]
+          })
         }
 
         // Captures
@@ -331,6 +389,10 @@ export async function run (workflow: Workflow, options: WorkflowOptions): Promis
             if (capture.selector) {
               const dom = cheerio.load(body)
               captures[capture.name] = dom(capture.selector).html()
+            }
+
+            if (capture.cookie) {
+              captures[capture.name] = cookies[capture.cookie]
             }
           })
         }
@@ -432,6 +494,24 @@ export async function run (workflow: Workflow, options: WorkflowOptions): Promis
           }
         }
 
+        // Check Cookies
+        if (step.check.cookies) {
+          stepResult.checks.cookies = {}
+
+          for (const cookie in step.check.cookies) {
+            stepResult.checks.cookies[cookie] = {
+              expected: step.check.cookies[cookie],
+              given: cookies[cookie],
+              passed: check(cookies[cookie], step.check.cookies[cookie])
+            }
+
+            if (!stepResult.checks.cookies[cookie].passed) {
+              workflowResult.passed = false
+              stepResult.passed = false
+            }
+          }
+        }
+
         // Check status
         if (step.check.status) {
           stepResult.checks.status = {
@@ -473,6 +553,24 @@ export async function run (workflow: Workflow, options: WorkflowOptions): Promis
             stepResult.passed = false
           }
         }
+
+        // Check hash (binary blobs)
+        if (step.check.sha256) {
+          const hash = crypto.createHash('sha256').update(Buffer.from(responseData)).digest('hex')
+          stepResult.checks.sha256 = {
+            expected: step.check.sha256,
+            given: hash,
+            passed: step.check.sha256 === hash
+          }
+
+          if (!stepResult.checks.sha256.passed) {
+            workflowResult.passed = false
+            stepResult.passed = false
+          }
+        }
+
+        // Add check for res.redirected
+        // Add check for res.ok
       } catch (error) {
         workflowResult.passed = false
         stepResult.failed = true
@@ -483,11 +581,11 @@ export async function run (workflow: Workflow, options: WorkflowOptions): Promis
 
     stepResult.duration = Date.now() - stepResult.timestamp
     previous = stepResult
-    if (options.ee) options.ee.emit('result', stepResult)
+    if (options?.ee) options.ee.emit('result', stepResult)
     workflowResult.result.push(stepResult)
   }
 
   workflowResult.duration = Date.now() - workflowResult.timestamp
-  if (options.ee) options.ee.emit('done', workflowResult)
+  if (options?.ee) options.ee.emit('done', workflowResult)
   return workflowResult
 }

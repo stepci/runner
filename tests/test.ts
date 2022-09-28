@@ -8,31 +8,57 @@ const workflow = {
   env: {
     host: "example.com"
   },
-  "steps": [{
-    "name": "GET request",
-    "url": "https://{{env.host}}",
+  "steps": [
+  {
+    "name": "Basic Auth",
+    "url": "http://httpbin.org/basic-auth/hello/world",
     "method": "GET",
+    "auth": {
+      "user": "hello",
+      "password": "world"
+    },
     "check": {
       "status": 200
-    },
-    "captures": [
-      { "name": "title",
-        "selector": "title"
-      }
-    ]
+    }
   },
   {
-    "name": "GET request",
-    "url": "https://{{env.host}}",
-    "if": `captures.title == "Example Domain"`,
+    "name": "Cookies",
+    "url": "https://httpbin.org/cookies",
     "method": "GET",
+    "cookies": {
+      "wows": "world"
+    },
+    "check": {
+      "status": 200,
+      "cookies": {
+        "wows": "world"
+      }
+    },
+  },
+  {
+    "name": "Image",
+    "url": "https://httpbin.org/image",
+    "headers": {
+      "accept": "image/webp"
+    },
+    "method": "GET",
+    "check": {
+      "status": 200,
+      "sha256": "567cfaf94ebaf279cea4eb0bc05c4655021fb4ee004aca52c096709d3ba87a63"
+    }
+  },
+  {
+    "name": "Upload",
+    "url": "https://httpbin.org/post",
+    "method": "POST",
+    "files": {
+      "name": "README.md"
+    },
     "check": {
       "status": 200
     }
   }]
 }
 
-const ee = new EventEmitter()
-ee.on('done', console.log)
-
-run(workflow, { ee })
+run(workflow)
+.then(( {result }) => console.log(result))
