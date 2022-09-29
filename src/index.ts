@@ -38,7 +38,7 @@ type WorkflowStep = {
   headers?: WorkflowStepHeaders
   params?: WorkflowStepParams
   cookies?: WorkflowStepCookies
-  body?: string
+  body?: string | WorkflowStepFile
   form?: WorkflowStepForm
   formData?: WorkflowStepMultiPartForm
   auth?: WorkflowStepAuth
@@ -285,11 +285,17 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
         step.followRedirects = step.followRedirects !== undefined ? step.followRedirects : true
         step.acceptCookies = step.acceptCookies !== undefined ? step.acceptCookies : true
 
-        let requestBody: string | FormData | undefined = undefined
+        let requestBody: string | FormData | Buffer | undefined = undefined
 
         // Body
         if (step.body) {
-          requestBody = step.body
+          if (typeof step.body === 'string') {
+            requestBody = step.body
+          }
+
+          if ((step.body as WorkflowStepFile).file) {
+            requestBody = fs.readFileSync((step.body as WorkflowStepFile).file)
+          }
         }
 
         //  JSON
