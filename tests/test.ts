@@ -51,11 +51,13 @@ const workflow = {
     "name": "Upload",
     "url": "https://httpbin.org/post",
     "method": "POST",
-    "files": {
-      "name": "README.md"
+    "formData": {
+      "name": {
+        "file": "README.md"
+      }
     },
     "check": {
-      "status": 200
+      "ok": true
     }
   }]
 }

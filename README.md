@@ -48,6 +48,7 @@ If you supply an `EventEmitter` as argument, you can subscribe to following even
 
 - `result`, once a step completes
 - `done`, once a workflow completes
+- `error`, once workflow errors
 
 **Example: Events**
 

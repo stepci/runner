@@ -36,18 +36,18 @@ type WorkflowStep = {
   url: string
   method: string
   headers?: WorkflowStepHeaders
+  params?: WorkflowStepParams
   cookies?: WorkflowStepCookies
   body?: string
   form?: WorkflowStepForm
-  formData?: WorkflowStepForm
-  files?: WorkflowStepForm
+  formData?: WorkflowStepMultiPartForm
   auth?: WorkflowStepAuth
   json?: any
   graphql?: WorkflowStepGraphQL
   captures?: WorkflowStepCaptures[]
   followRedirects?: boolean
   acceptCookies?: boolean
-  check: WorkflowStepCheck
+  check?: WorkflowStepCheck
 }
 
 type WorkflowConditions = {
@@ -58,12 +58,24 @@ type WorkflowStepHeaders = {
   [key: string]: string
 }
 
+type WorkflowStepParams = {
+  [key: string]: string
+}
+
 type WorkflowStepCookies = {
   [key: string]: string
 }
 
 type WorkflowStepForm = {
   [key: string]: string
+}
+
+type WorkflowStepMultiPartForm = {
+  [key: string]: string | WorkflowStepFile
+}
+
+type WorkflowStepFile = {
+  file: string
 }
 
 type WorkflowStepAuth = {
@@ -90,6 +102,8 @@ type WorkflowStepCapturesStorage = {
 }
 
 type WorkflowStepCheck = {
+  ok?: boolean
+  redirected?: boolean
   status?: number | WorkflowMatcher[]
   statusText?: string | WorkflowMatcher[]
   headers?: WorkflowStepCheckValue | WorkflowStepCheckMatcher
@@ -143,7 +157,7 @@ type WorkflowResult = {
 
 type WorkflowStepResult = {
   name: string
-  checks: WorkflowResultCheck
+  checks?: WorkflowResultCheck
   failed?: boolean
   failReason?: string
   passed: boolean
@@ -166,6 +180,8 @@ type WorkflowResultResponse = {
 }
 
 type WorkflowResultCheck = {
+  ok?: WorkflowResultCheckResult
+  redirected?: WorkflowResultCheckResult
   headers?: WorkflowResultCheckResults
   jsonpath?: WorkflowResultCheckResults
   xpath?: WorkflowResultCheckResults
@@ -250,7 +266,6 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
   for (let step of workflow.steps) {
     let stepResult: WorkflowStepResult = {
       name: step.name,
-      checks: {},
       timestamp: Date.now(),
       passed: true,
       duration: 0
@@ -300,18 +315,14 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
         // Multipart Form Data
         if (step.formData) {
           const formData = new FormData()
-          for (const field in step.form) {
-            formData.append(field, step.form[field])
-          }
+          for (const field in step.formData) {
+            if (typeof step.formData[field] === 'string') {
+              formData.append(field, step.formData[field])
+            }
 
-          requestBody = formData
-        }
-
-        // File uploads
-        if (step.files) {
-          const formData = step.formData ? requestBody as FormData : new FormData()
-          for (const field in step.files) {
-            formData.append(field, fs.readFileSync(step.files[field]))
+            if ((step.formData[field] as WorkflowStepFile).file) {
+              formData.append(field, fs.readFileSync((step.formData[field] as WorkflowStepFile).file))
+            }
           }
 
           requestBody = formData
@@ -333,6 +344,12 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
           for (const cookie in cookies) {
             step.headers.cookie += cookie + '=' + cookies[cookie] + ' '
           }
+        }
+
+        // Query Params
+        if (step.params) {
+          const params = new URLSearchParams(step.params)
+          step.url = step.url + '?' + params.toString()
         }
 
         // Make a request
@@ -398,6 +415,8 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
         }
 
         if (step.check) {
+          stepResult.checks = {}
+
           // Check headers
           if (step.check.headers){
             stepResult.checks.headers = {}
@@ -415,167 +434,193 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
               }
             }
           }
-        }
 
-        // Check body
-        if (step.check.body) {
-          stepResult.checks.body = {
-            expected: step.check.body,
-            given: body.trim(),
-            passed: check(body.trim(), step.check.body)
-          }
-
-          if (!stepResult.checks.body.passed) {
-            workflowResult.passed = false
-            stepResult.passed = false
-          }
-        }
-
-        // Check JSONPath
-        if (step.check.jsonpath) {
-          const json = JSON.parse(body)
-          stepResult.checks.jsonpath = {}
-
-          for (const path in step.check.jsonpath) {
-            const result = JSONPath({ path, json })
-
-            stepResult.checks.jsonpath[path] = {
-              expected: step.check?.jsonpath[path],
-              given: result[0],
-              passed: check(result[0], step.check?.jsonpath[path])
+          // Check body
+          if (step.check?.body) {
+            stepResult.checks.body = {
+              expected: step.check.body,
+              given: body.trim(),
+              passed: check(body.trim(), step.check.body)
             }
 
-            if (!stepResult.checks.jsonpath[path].passed) {
+            if (!stepResult.checks.body.passed) {
+              workflowResult.passed = false
+              stepResult.passed = false
+            }
+          }
+
+          // Check JSONPath
+          if (step.check?.jsonpath) {
+            const json = JSON.parse(body)
+            stepResult.checks.jsonpath = {}
+
+            for (const path in step.check.jsonpath) {
+              const result = JSONPath({ path, json })
+
+              stepResult.checks.jsonpath[path] = {
+                expected: step.check?.jsonpath[path],
+                given: result[0],
+                passed: check(result[0], step.check?.jsonpath[path])
+              }
+
+              if (!stepResult.checks.jsonpath[path].passed) {
+                workflowResult.passed = false
+                stepResult.passed = false
+              }
+            }
+          }
+
+          // Check XPath
+          if (step.check?.xpath) {
+            stepResult.checks.xpath = {}
+
+            for (const path in step.check.xpath) {
+              const dom = new DOMParser().parseFromString(body)
+              const result = xpath.select(path, dom)
+
+              stepResult.checks.xpath[path] = {
+                expected: step.check.xpath[path],
+                given: result.length > 0 ? (result[0] as any).firstChild.data : undefined,
+                passed: check(result.length > 0 ? (result[0] as any).firstChild.data : undefined, step.check.xpath[path])
+              }
+
+              if (!stepResult.checks.xpath[path].passed) {
+                workflowResult.passed = false
+                stepResult.passed = false
+              }
+            }
+          }
+
+          // Check HTML5 Selector
+          if (step.check?.selector) {
+            stepResult.checks.selector = {}
+            const dom = cheerio.load(body)
+
+            for (const selector in step.check.selector) {
+              const result = dom(selector).html()
+
+              stepResult.checks.selector[selector] = {
+                expected: step.check.selector[selector],
+                given: result,
+                passed: check(result, step.check.selector[selector])
+              }
+
+              if (!stepResult.checks.selector[selector].passed) {
+                workflowResult.passed = false
+                stepResult.passed = false
+              }
+            }
+          }
+
+          // Check Cookies
+          if (step.check?.cookies) {
+            stepResult.checks.cookies = {}
+
+            for (const cookie in step.check.cookies) {
+              stepResult.checks.cookies[cookie] = {
+                expected: step.check.cookies[cookie],
+                given: cookies[cookie],
+                passed: check(cookies[cookie], step.check.cookies[cookie])
+              }
+
+              if (!stepResult.checks.cookies[cookie].passed) {
+                workflowResult.passed = false
+                stepResult.passed = false
+              }
+            }
+          }
+
+          // Check status
+          if (step.check?.status) {
+            stepResult.checks.status = {
+              expected: step.check.status,
+              given: res.status,
+              passed: check(res.status, step.check.status)
+            }
+
+            if (!stepResult.checks.status.passed) {
+              workflowResult.passed = false
+              stepResult.passed = false
+            }
+          }
+
+          // Check statusText
+          if (step.check?.statusText) {
+            stepResult.checks.statusText = {
+              expected: step.check.statusText,
+              given: res.statusText,
+              passed: check(res.statusText, step.check.statusText)
+            }
+
+            if (!stepResult.checks.statusText.passed) {
+              workflowResult.passed = false
+              stepResult.passed = false
+            }
+          }
+
+          // Check OK
+          if (step.check?.['ok']) {
+            stepResult.checks.ok = {
+              expected: step.check.ok,
+              given: res.ok,
+              passed: res.ok === step.check.ok
+            }
+
+            if (!stepResult.checks.ok.passed) {
+              workflowResult.passed = false
+              stepResult.passed = false
+            }
+          }
+
+          // Check Redirect
+          if (step.check?.['redirected']) {
+            stepResult.checks.redirected = {
+              expected: step.check.redirected,
+              given: res.redirected,
+              passed: res.redirected === step.check.redirected
+            }
+
+            if (!stepResult.checks.redirected.passed) {
+              workflowResult.passed = false
+              stepResult.passed = false
+            }
+          }
+
+          // Check duration
+          if (step.check?.duration) {
+            stepResult.checks.duration = {
+              expected: step.check.duration,
+              given: requestDuration,
+              passed: check(requestDuration, step.check.duration)
+            }
+
+            if (!stepResult.checks.duration.passed) {
+              workflowResult.passed = false
+              stepResult.passed = false
+            }
+          }
+
+          // Check hash (binary blobs)
+          if (step.check?.sha256) {
+            const hash = crypto.createHash('sha256').update(Buffer.from(responseData)).digest('hex')
+            stepResult.checks.sha256 = {
+              expected: step.check.sha256,
+              given: hash,
+              passed: step.check.sha256 === hash
+            }
+
+            if (!stepResult.checks.sha256.passed) {
               workflowResult.passed = false
               stepResult.passed = false
             }
           }
         }
-
-        // Check XPath
-        if (step.check.xpath) {
-          stepResult.checks.xpath = {}
-
-          for (const path in step.check.xpath) {
-            const dom = new DOMParser().parseFromString(body)
-            const result = xpath.select(path, dom)
-
-            stepResult.checks.xpath[path] = {
-              expected: step.check.xpath[path],
-              given: result.length > 0 ? (result[0] as any).firstChild.data : undefined,
-              passed: check(result.length > 0 ? (result[0] as any).firstChild.data : undefined, step.check.xpath[path])
-            }
-
-            if (!stepResult.checks.xpath[path].passed) {
-              workflowResult.passed = false
-              stepResult.passed = false
-            }
-          }
-        }
-
-        // Check HTML5 Selector
-        if (step.check.selector) {
-          stepResult.checks.selector = {}
-          const dom = cheerio.load(body)
-
-          for (const selector in step.check.selector) {
-            const result = dom(selector).html()
-
-            stepResult.checks.selector[selector] = {
-              expected: step.check.selector[selector],
-              given: result,
-              passed: check(result, step.check.selector[selector])
-            }
-
-            if (!stepResult.checks.selector[selector].passed) {
-              workflowResult.passed = false
-              stepResult.passed = false
-            }
-          }
-        }
-
-        // Check Cookies
-        if (step.check.cookies) {
-          stepResult.checks.cookies = {}
-
-          for (const cookie in step.check.cookies) {
-            stepResult.checks.cookies[cookie] = {
-              expected: step.check.cookies[cookie],
-              given: cookies[cookie],
-              passed: check(cookies[cookie], step.check.cookies[cookie])
-            }
-
-            if (!stepResult.checks.cookies[cookie].passed) {
-              workflowResult.passed = false
-              stepResult.passed = false
-            }
-          }
-        }
-
-        // Check status
-        if (step.check.status) {
-          stepResult.checks.status = {
-            expected: step.check.status,
-            given: res.status,
-            passed: check(res.status, step.check.status)
-          }
-
-          if (!stepResult.checks.status.passed) {
-            workflowResult.passed = false
-            stepResult.passed = false
-          }
-        }
-
-        // Check statusText
-        if (step.check.statusText) {
-          stepResult.checks.statusText = {
-            expected: step.check.statusText,
-            given: res.statusText,
-            passed: check(res.statusText, step.check.statusText)
-          }
-
-          if (!stepResult.checks.statusText.passed) {
-            workflowResult.passed = false
-            stepResult.passed = false
-          }
-        }
-
-        // Check duration
-        if (step.check.duration) {
-          stepResult.checks.duration = {
-            expected: step.check.duration,
-            given: requestDuration,
-            passed: check(requestDuration, step.check.duration)
-          }
-
-          if (!stepResult.checks.duration.passed) {
-            workflowResult.passed = false
-            stepResult.passed = false
-          }
-        }
-
-        // Check hash (binary blobs)
-        if (step.check.sha256) {
-          const hash = crypto.createHash('sha256').update(Buffer.from(responseData)).digest('hex')
-          stepResult.checks.sha256 = {
-            expected: step.check.sha256,
-            given: hash,
-            passed: step.check.sha256 === hash
-          }
-
-          if (!stepResult.checks.sha256.passed) {
-            workflowResult.passed = false
-            stepResult.passed = false
-          }
-        }
-
-        // Add check for res.redirected
-        // Add check for res.ok
       } catch (error) {
         workflowResult.passed = false
         stepResult.failed = true
         stepResult.failReason = (error as Error).message
         stepResult.passed = false
+        if (options?.ee) options.ee.emit('error', error)
       }
     }
 
