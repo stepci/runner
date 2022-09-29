@@ -11,12 +11,15 @@ import { EventEmitter } from 'node:events'
 import crypto from 'crypto'
 import fs from 'fs'
 import yaml from 'yaml'
+import deepEqual from 'deep-equal'
+import JSONSchema from 'jsonschema'
+import toJsonSchema from 'to-json-schema'
 
 type Workflow = {
   version: string
   name: string
   path?: string
-  env: any
+  env?: any
   steps: WorkflowStep[]
 }
 
@@ -109,6 +112,9 @@ type WorkflowStepCheck = {
   headers?: WorkflowStepCheckValue | WorkflowStepCheckMatcher
   body?: string | WorkflowMatcher[]
   duration?: number | WorkflowMatcher[]
+  json?: any
+  jsonschema?: string
+  jsonexample?: string
   jsonpath?: WorkflowStepCheckJSONPath | WorkflowStepCheckMatcher
   xpath?: WorkflowStepCheckValue | WorkflowStepCheckMatcher
   selector?: WorkflowStepCheckValue | WorkflowStepCheckMatcher
@@ -183,6 +189,9 @@ type WorkflowResultCheck = {
   ok?: WorkflowResultCheckResult
   redirected?: WorkflowResultCheckResult
   headers?: WorkflowResultCheckResults
+  json?: WorkflowResultCheckResult
+  jsonschema?: WorkflowResultCheckResult
+  jsonexample?: WorkflowResultCheckResult
   jsonpath?: WorkflowResultCheckResults
   xpath?: WorkflowResultCheckResults
   selector?: WorkflowResultCheckResults
@@ -442,7 +451,7 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
           }
 
           // Check body
-          if (step.check?.body) {
+          if (step.check.body) {
             stepResult.checks.body = {
               expected: step.check.body,
               given: body.trim(),
@@ -455,8 +464,55 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
             }
           }
 
+          // Check JSON
+          if (step.check.json) {
+            const json = JSON.parse(body)
+            stepResult.checks.json = {
+              expected: step.check.json,
+              given: json,
+              passed: deepEqual(json, step.check.json)
+            }
+
+            if (!stepResult.checks.json.passed) {
+              workflowResult.passed = false
+              stepResult.passed = false
+            }
+          }
+
+          // Check JSONSchema
+          if (step.check.jsonschema) {
+            const json = JSON.parse(body)
+            const schema = JSON.parse(step.check.jsonschema)
+
+            stepResult.checks.jsonschema = {
+              expected: step.check.jsonschema,
+              given: json,
+              passed: JSONSchema.validate(json, schema).valid
+            }
+
+            if (!stepResult.checks.jsonschema.passed) {
+              workflowResult.passed = false
+              stepResult.passed = false
+            }
+          }
+
+          // Check JSON Example
+          if (step.check.jsonexample) {
+            const json = JSON.parse(body)
+            stepResult.checks.jsonexample = {
+              expected: step.check.jsonexample,
+              given: json,
+              passed: JSONSchema.validate(json, toJsonSchema(json)).valid
+            }
+
+            if (!stepResult.checks.jsonexample.passed) {
+              workflowResult.passed = false
+              stepResult.passed = false
+            }
+          }
+
           // Check JSONPath
-          if (step.check?.jsonpath) {
+          if (step.check.jsonpath) {
             const json = JSON.parse(body)
             stepResult.checks.jsonpath = {}
 
@@ -464,9 +520,9 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
               const result = JSONPath({ path, json })
 
               stepResult.checks.jsonpath[path] = {
-                expected: step.check?.jsonpath[path],
+                expected: step.check.jsonpath[path],
                 given: result[0],
-                passed: check(result[0], step.check?.jsonpath[path])
+                passed: check(result[0], step.check.jsonpath[path])
               }
 
               if (!stepResult.checks.jsonpath[path].passed) {
@@ -477,7 +533,7 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
           }
 
           // Check XPath
-          if (step.check?.xpath) {
+          if (step.check.xpath) {
             stepResult.checks.xpath = {}
 
             for (const path in step.check.xpath) {
@@ -498,7 +554,7 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
           }
 
           // Check HTML5 Selector
-          if (step.check?.selector) {
+          if (step.check.selector) {
             stepResult.checks.selector = {}
             const dom = cheerio.load(body)
 
@@ -519,7 +575,7 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
           }
 
           // Check Cookies
-          if (step.check?.cookies) {
+          if (step.check.cookies) {
             stepResult.checks.cookies = {}
 
             for (const cookie in step.check.cookies) {
@@ -537,7 +593,7 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
           }
 
           // Check status
-          if (step.check?.status) {
+          if (step.check.status) {
             stepResult.checks.status = {
               expected: step.check.status,
               given: res.status,
@@ -551,7 +607,7 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
           }
 
           // Check statusText
-          if (step.check?.statusText) {
+          if (step.check.statusText) {
             stepResult.checks.statusText = {
               expected: step.check.statusText,
               given: res.statusText,
@@ -565,7 +621,7 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
           }
 
           // Check OK
-          if (step.check?.['ok']) {
+          if (step.check['ok']) {
             stepResult.checks.ok = {
               expected: step.check.ok,
               given: res.ok,
@@ -579,7 +635,7 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
           }
 
           // Check Redirect
-          if (step.check?.['redirected']) {
+          if (step.check['redirected']) {
             stepResult.checks.redirected = {
               expected: step.check.redirected,
               given: res.redirected,
@@ -593,7 +649,7 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
           }
 
           // Check duration
-          if (step.check?.duration) {
+          if (step.check.duration) {
             stepResult.checks.duration = {
               expected: step.check.duration,
               given: requestDuration,
@@ -607,7 +663,7 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
           }
 
           // Check hash (binary blobs)
-          if (step.check?.sha256) {
+          if (step.check.sha256) {
             const hash = crypto.createHash('sha256').update(Buffer.from(responseData)).digest('hex')
             stepResult.checks.sha256 = {
               expected: step.check.sha256,
