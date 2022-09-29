@@ -19,7 +19,7 @@ type Workflow = {
   version: string
   name: string
   path?: string
-  env?: any
+  env?: object
   steps: WorkflowStep[]
 }
 
@@ -45,7 +45,7 @@ type WorkflowStep = {
   form?: WorkflowStepForm
   formData?: WorkflowStepMultiPartForm
   auth?: WorkflowStepAuth
-  json?: any
+  json?: object | string
   graphql?: WorkflowStepGraphQL
   captures?: WorkflowStepCaptures[]
   followRedirects?: boolean
@@ -88,7 +88,7 @@ type WorkflowStepAuth = {
 
 type WorkflowStepGraphQL = {
   query: string
-  variables: any
+  variables: object
 }
 
 type WorkflowStepCaptures = {
@@ -112,9 +112,9 @@ type WorkflowStepCheck = {
   headers?: WorkflowStepCheckValue | WorkflowStepCheckMatcher
   body?: string | WorkflowMatcher[]
   duration?: number | WorkflowMatcher[]
-  json?: any
-  jsonschema?: string
-  jsonexample?: string
+  json?: object | string
+  jsonschema?: object | string
+  jsonexample?: object | string
   jsonpath?: WorkflowStepCheckJSONPath | WorkflowStepCheckMatcher
   xpath?: WorkflowStepCheckValue | WorkflowStepCheckMatcher
   selector?: WorkflowStepCheckValue | WorkflowStepCheckMatcher
@@ -127,7 +127,7 @@ type WorkflowStepCheckValue = {
 }
 
 type WorkflowStepCheckJSONPath = {
-  [key: string]: any
+  [key: string]: object
 }
 
 type WorkflowStepCheckMatcher = {
@@ -141,8 +141,8 @@ type WorkflowMatcher = {
   gte?: number
   lt?: number
   lte?: number
-  in?: any
-  nin?: any
+  in?: object
+  nin?: object
   match?: string
   isNumber?: boolean
   isString?: boolean
@@ -309,7 +309,13 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
 
         //  JSON
         if (step.json) {
-          requestBody = JSON.stringify(step.json)
+          if (typeof step.json === 'string') {
+            requestBody = step.json
+          }
+
+          if (typeof step.json === 'object') {
+            requestBody = JSON.stringify(step.json)
+          }
         }
 
         // GraphQL
@@ -467,10 +473,20 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
           // Check JSON
           if (step.check.json) {
             const json = JSON.parse(body)
+            let expected
+
+            if (typeof step.check.json === 'string') {
+              expected = JSON.parse(step.check.json)
+            }
+
+            if (typeof step.check.json === 'object') {
+              expected = step.check.json
+            }
+
             stepResult.checks.json = {
-              expected: step.check.json,
+              expected,
               given: json,
-              passed: deepEqual(json, step.check.json)
+              passed: deepEqual(json, expected)
             }
 
             if (!stepResult.checks.json.passed) {
@@ -482,10 +498,18 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
           // Check JSONSchema
           if (step.check.jsonschema) {
             const json = JSON.parse(body)
-            const schema = JSON.parse(step.check.jsonschema)
+            let schema
+
+            if (typeof step.check.jsonschema === 'string') {
+              schema = JSON.parse(step.check.jsonschema)
+            }
+
+            if (typeof step.check.jsonschema === 'object'){
+              schema = step.check.jsonschema
+            }
 
             stepResult.checks.jsonschema = {
-              expected: step.check.jsonschema,
+              expected: schema,
               given: json,
               passed: JSONSchema.validate(json, schema).valid
             }
@@ -499,10 +523,21 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
           // Check JSON Example
           if (step.check.jsonexample) {
             const json = JSON.parse(body)
+            let example
+
+            if (typeof step.check.jsonexample === 'string') {
+              example = JSON.parse(step.check.jsonexample)
+            }
+
+            if (typeof step.check.jsonexample === 'object'){
+              example = step.check.jsonexample
+            }
+
+            const schema = toJsonSchema(json, { required: true })
             stepResult.checks.jsonexample = {
-              expected: step.check.jsonexample,
+              expected: schema,
               given: json,
-              passed: JSONSchema.validate(json, toJsonSchema(json)).valid
+              passed: JSONSchema.validate(example, schema).valid
             }
 
             if (!stepResult.checks.jsonexample.passed) {
