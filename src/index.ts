@@ -51,11 +51,12 @@ type WorkflowStep = {
   form?: WorkflowStepForm
   formData?: WorkflowStepMultiPartForm
   auth?: WorkflowStepAuth
-  json?: object | string
+  json?: object
   graphql?: WorkflowStepGraphQL
   captures?: WorkflowStepCaptures[]
   followRedirects?: boolean
   check?: WorkflowStepCheck
+  timeout?: number
 }
 
 type WorkflowConditions = {
@@ -112,11 +113,13 @@ type WorkflowStepCapturesStorage = {
 type WorkflowStepCheck = {
   status?: number | WorkflowMatcher[]
   statusText?: string | WorkflowMatcher[]
+  redirected?: boolean
+  redirects?: string[]
   headers?: WorkflowStepCheckValue | WorkflowStepCheckMatcher
   body?: string | WorkflowMatcher[]
-  json?: object | string
-  jsonschema?: object | string
-  jsonexample?: object | string
+  json?: object
+  jsonschema?: object
+  jsonexample?: object
   jsonpath?: WorkflowStepCheckJSONPath | WorkflowStepCheckMatcher
   xpath?: WorkflowStepCheckValue | WorkflowStepCheckMatcher
   selector?: WorkflowStepCheckValue | WorkflowStepCheckMatcher
@@ -194,8 +197,9 @@ type WorkflowResultResponse = {
 }
 
 type WorkflowResultCheck = {
-  redirected?: WorkflowResultCheckResult
   headers?: WorkflowResultCheckResults
+  redirected?: WorkflowResultCheckResult
+  redirects?: WorkflowResultCheckResult
   json?: WorkflowResultCheckResult
   jsonschema?: WorkflowResultCheckResult
   jsonexample?: WorkflowResultCheckResult
@@ -303,8 +307,6 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
       try {
         // Parse template
         step = JSON.parse(mustache.render(JSON.stringify(step), { captures, env: workflow.env, secrets: options?.secrets }))
-        step.followRedirects = step.followRedirects !== undefined ? step.followRedirects : true
-
         let requestBody: string | FormData | Buffer | undefined = undefined
 
         // Body
@@ -320,13 +322,7 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
 
         //  JSON
         if (step.json) {
-          if (typeof step.json === 'string') {
-            requestBody = step.json
-          }
-
-          if (typeof step.json === 'object') {
-            requestBody = JSON.stringify(step.json)
-          }
+          requestBody = JSON.stringify(step.json)
         }
 
         // GraphQL
@@ -380,7 +376,8 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
           body: requestBody,
           searchParams: step.params,
           throwHttpErrors: false,
-          followRedirect: step.followRedirects,
+          followRedirect: step.followRedirects !== undefined ? step.followRedirects : true,
+          timeout: step.timeout,
           cookieJar: cookies
         })
 
@@ -466,20 +463,11 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
           // Check JSON
           if (step.check.json) {
             const json = JSON.parse(body)
-            let expected
-
-            if (typeof step.check.json === 'string') {
-              expected = JSON.parse(step.check.json)
-            }
-
-            if (typeof step.check.json === 'object') {
-              expected = step.check.json
-            }
 
             stepResult.checks.json = {
-              expected,
+              expected: step.check.json,
               given: json,
-              passed: deepEqual(json, expected)
+              passed: deepEqual(json, step.check.json)
             }
 
             if (!stepResult.checks.json.passed) {
@@ -491,20 +479,11 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
           // Check JSONSchema
           if (step.check.jsonschema) {
             const json = JSON.parse(body)
-            let schema
-
-            if (typeof step.check.jsonschema === 'string') {
-              schema = JSON.parse(step.check.jsonschema)
-            }
-
-            if (typeof step.check.jsonschema === 'object'){
-              schema = step.check.jsonschema
-            }
 
             stepResult.checks.jsonschema = {
-              expected: schema,
+              expected: step.check.jsonschema,
               given: json,
-              passed: JSONSchema.validate(json, schema).valid
+              passed: JSONSchema.validate(json, step.check.jsonschema).valid
             }
 
             if (!stepResult.checks.jsonschema.passed) {
@@ -516,21 +495,12 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
           // Check JSON Example
           if (step.check.jsonexample) {
             const json = JSON.parse(body)
-            let example
-
-            if (typeof step.check.jsonexample === 'string') {
-              example = JSON.parse(step.check.jsonexample)
-            }
-
-            if (typeof step.check.jsonexample === 'object'){
-              example = step.check.jsonexample
-            }
-
             const schema = toJsonSchema(json, { required: true })
+
             stepResult.checks.jsonexample = {
               expected: schema,
               given: json,
-              passed: JSONSchema.validate(example, schema).valid
+              passed: JSONSchema.validate(step.check.jsonexample, schema).valid
             }
 
             if (!stepResult.checks.jsonexample.passed) {
@@ -680,6 +650,34 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
                 workflowResult.passed = false
                 stepResult.passed = false
               }
+            }
+          }
+
+          // Check whether request was redirected
+          if ('redirected' in step.check) {
+            stepResult.checks.redirected = {
+              expected: step.check.redirected,
+              given: res.redirectUrls.length > 0,
+              passed: res.redirectUrls.length > 0 === step.check.redirected
+            }
+
+            if (!stepResult.checks.redirected.passed) {
+              workflowResult.passed = false
+              stepResult.passed = false
+            }
+          }
+
+          // Check redirects
+          if (step.check.redirects) {
+            stepResult.checks.redirects = {
+              expected: step.check.redirects,
+              given: res.redirectUrls,
+              passed: deepEqual(res.redirectUrls, step.check.redirects)
+            }
+
+            if (!stepResult.checks.redirects.passed) {
+              workflowResult.passed = false
+              stepResult.passed = false
             }
           }
         }

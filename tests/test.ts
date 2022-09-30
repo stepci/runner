@@ -12,15 +12,14 @@ const workflow = {
   },
   "steps": [
   {
-    "name": "Basic Auth",
-    "url": "http://httpbin.org/basic-auth/hello/world",
+    "name": "Redirect",
+    "url": "https://httpbin.org/redirect-to",
     "method": "GET",
-    "auth": {
-      "user": "hello",
-      "password": "world"
+    "params": {
+      "url": "https://example.com",
     },
     "check": {
-      "status": 200
+      "redirects": ['https://example.com/']
     }
   },
   {
