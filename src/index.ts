@@ -1,4 +1,4 @@
-import { got, Method } from 'got'
+import got, { Method } from 'got'
 import { CookieJar } from 'tough-cookie'
 import mustache from 'mustache'
 import xpath from 'xpath'
@@ -192,7 +192,6 @@ type WorkflowResultResponse = {
 }
 
 type WorkflowResultCheck = {
-  ok?: WorkflowResultCheckResult
   redirected?: WorkflowResultCheckResult
   headers?: WorkflowResultCheckResults
   json?: WorkflowResultCheckResult
@@ -644,20 +643,6 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
             }
 
             if (!stepResult.checks.statusText.passed) {
-              workflowResult.passed = false
-              stepResult.passed = false
-            }
-          }
-
-          // Check OK
-          if (step.check['ok']) {
-            stepResult.checks.ok = {
-              expected: step.check.ok,
-              given: res.ok,
-              passed: res.ok === step.check.ok
-            }
-
-            if (!stepResult.checks.ok.passed) {
               workflowResult.passed = false
               stepResult.passed = false
             }

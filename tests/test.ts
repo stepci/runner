@@ -1,4 +1,4 @@
-import { run } from '../src/index.js'
+import { run } from '../src/index'
 
 // Example workflow
 const workflow = {
