@@ -110,8 +110,6 @@ type WorkflowStepCapturesStorage = {
 }
 
 type WorkflowStepCheck = {
-  ok?: boolean
-  redirected?: boolean
   status?: number | WorkflowMatcher[]
   statusText?: string | WorkflowMatcher[]
   headers?: WorkflowStepCheckValue | WorkflowStepCheckMatcher
