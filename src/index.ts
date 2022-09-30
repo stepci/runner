@@ -761,6 +761,11 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
                 given: isExpired,
                 passed: isExpired === step.check.ssl.expired
               }
+
+              if (!stepResult.checks.ssl.expired.passed) {
+                workflowResult.passed = false
+                stepResult.passed = false
+              }
             }
 
             if (step.check.ssl.daysUntilExpiration) {
@@ -768,6 +773,11 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
                 expected: step.check.ssl.daysUntilExpiration,
                 given: daysRemaining,
                 passed: check(daysRemaining, step.check.ssl.daysUntilExpiration)
+              }
+
+              if (!stepResult.checks.ssl.daysUntilExpiration.passed) {
+                workflowResult.passed = false
+                stepResult.passed = false
               }
             }
           }
