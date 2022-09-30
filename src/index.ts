@@ -1,4 +1,5 @@
-import fetch from 'node-fetch'
+import { got, Method } from 'got'
+import { CookieJar } from 'tough-cookie'
 import mustache from 'mustache'
 import xpath from 'xpath'
 import FormData from 'form-data'
@@ -6,7 +7,7 @@ import * as cheerio from 'cheerio'
 import { JSONPath } from 'jsonpath-plus'
 import { DOMParser } from 'xmldom'
 import { compileExpression } from 'filtrex'
-import { flatten } from 'flat'
+import flatten from 'flat'
 import { EventEmitter } from 'node:events'
 import crypto from 'crypto'
 import fs from 'fs'
@@ -21,6 +22,11 @@ type Workflow = {
   path?: string
   env?: object
   steps: WorkflowStep[]
+  options?: WorkflowStepOptions
+}
+
+type WorkflowStepOptions = {
+  continueOnFail?: boolean
 }
 
 type WorkflowOptions = {
@@ -49,7 +55,6 @@ type WorkflowStep = {
   graphql?: WorkflowStepGraphQL
   captures?: WorkflowStepCaptures[]
   followRedirects?: boolean
-  acceptCookies?: boolean
   check?: WorkflowStepCheck
 }
 
@@ -181,7 +186,7 @@ type WorkflowResultRequest = {
 
 type WorkflowResultResponse = {
   status: number
-  statusText: string
+  statusText?: string
   duration: number
 }
 
@@ -252,6 +257,11 @@ function checkCondition (expression: string, data: WorkflowConditions): boolean 
   return filter(flatten(data))
 }
 
+// Get cookie
+function getCookie (store: CookieJar, name: string, url: string) {
+  return store.getCookiesSync(url).filter(cookie => cookie.key === name)[0].value
+}
+
 // Run from workflow file
 export function runFromFile (path: string, options?: WorkflowOptions): Promise<WorkflowResult> {
   const workflowFile = fs.readFileSync(path).toString()
@@ -260,7 +270,7 @@ export function runFromFile (path: string, options?: WorkflowOptions): Promise<W
 }
 
 export async function run (workflow: Workflow, options?: WorkflowOptions): Promise<WorkflowResult> {
-  let workflowResult: WorkflowResult = {
+  const workflowResult: WorkflowResult = {
     workflow,
     result: [],
     passed: true,
@@ -269,11 +279,11 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
   }
 
   const captures: WorkflowStepCapturesStorage = {}
-  const cookies: WorkflowStepCookies = {}
+  const cookies = new CookieJar()
   let previous: WorkflowStepResult | undefined
 
   for (let step of workflow.steps) {
-    let stepResult: WorkflowStepResult = {
+    const stepResult: WorkflowStepResult = {
       name: step.name,
       timestamp: Date.now(),
       passed: true,
@@ -281,7 +291,7 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
     }
 
     // Skip current step is the previous one failed or condition was unmet
-    if (previous && !previous.passed) {
+    if (!workflow.options?.continueOnFail && (previous && !previous.passed)) {
       stepResult.passed = false
       stepResult.failReason = 'Step was skipped because previous one failed'
       stepResult.skipped = true
@@ -292,7 +302,6 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
         // Parse template
         step = JSON.parse(mustache.render(JSON.stringify(step), { captures, env: workflow.env, secrets: options?.secrets }))
         step.followRedirects = step.followRedirects !== undefined ? step.followRedirects : true
-        step.acceptCookies = step.acceptCookies !== undefined ? step.acceptCookies : true
 
         let requestBody: string | FormData | Buffer | undefined = undefined
 
@@ -356,54 +365,37 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
         }
 
         // Set Cookies
-        if (Object.keys(cookies).length > 0 || step.cookies) {
-          Object.assign(cookies, step.cookies)
-
-          if (!step.headers) step.headers = { cookie: '' }
-          if (!step.headers.cookie) step.headers.cookie = ''
-
-          for (const cookie in cookies) {
-            step.headers.cookie += cookie + '=' + cookies[cookie] + ' '
+        if (step.cookies) {
+          for (const cookie in step.cookies) {
+            await cookies.setCookie(cookie + '=' + step.cookies[cookie], step.url)
           }
-        }
-
-        // Query Params
-        if (step.params) {
-          const params = new URLSearchParams(step.params)
-          step.url = step.url + '?' + params.toString()
         }
 
         // Make a request
         const requestStart = Date.now()
-        const res = await fetch(step.url, {
-          method: step.method,
-          headers: step.headers,
+        const res = await got(step.url, {
+          method: step.method as Method,
+          headers: { ...step.headers },
           body: requestBody,
-          redirect: step.followRedirects ? 'follow' : 'error'
+          searchParams: step.params,
+          throwHttpErrors: false,
+          followRedirect: step.followRedirects,
+          cookieJar: cookies
         })
 
-        const responseData = await res.arrayBuffer()
+        const responseData = res.rawBody
         const body = await new TextDecoder().decode(responseData)
         const requestDuration = Date.now() - requestStart
 
         stepResult.request = {
-          url: step.url,
+          url: res.url,
           method: step.method
         }
 
         stepResult.response = {
-          status: res.status,
-          statusText: res.statusText,
+          status: res.statusCode,
+          statusText: res.statusMessage,
           duration: requestDuration
-        }
-
-        // Add response cookies to cookie store
-        if (step.acceptCookies && res.headers.has('Set-Cookie')) {
-          const responseCookies = res.headers.raw()['set-cookie']
-          responseCookies.forEach(cookie => {
-            const cookieValue = cookie.split('; ')[0].split('=')
-            cookies[cookieValue[0]] = cookieValue[1]
-          })
         }
 
         // Captures
@@ -421,7 +413,7 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
             }
 
             if (capture.header) {
-              captures[capture.name] = res.headers.get(capture.header)
+              captures[capture.name] = res.headers[capture.header]
             }
 
             if (capture.selector) {
@@ -430,7 +422,7 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
             }
 
             if (capture.cookie) {
-              captures[capture.name] = cookies[capture.cookie]
+              captures[capture.name] = getCookie(cookies, capture.cookie, res.url)
             }
           })
         }
@@ -445,8 +437,8 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
             for (const header in step.check.headers){
               stepResult.checks.headers[header] = {
                 expected: step.check.headers[header],
-                given: res.headers.get(header),
-                passed: check(res.headers.get(header), step.check.headers[header])
+                given: res.headers[header],
+                passed: check(res.headers[header], step.check.headers[header])
               }
 
               if (!stepResult.checks.headers[header].passed){
@@ -614,10 +606,12 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
             stepResult.checks.cookies = {}
 
             for (const cookie in step.check.cookies) {
+              const value = getCookie(cookies, cookie, res.url)
+
               stepResult.checks.cookies[cookie] = {
                 expected: step.check.cookies[cookie],
-                given: cookies[cookie],
-                passed: check(cookies[cookie], step.check.cookies[cookie])
+                given: value,
+                passed: check(value, step.check.cookies[cookie])
               }
 
               if (!stepResult.checks.cookies[cookie].passed) {
@@ -631,8 +625,8 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
           if (step.check.status) {
             stepResult.checks.status = {
               expected: step.check.status,
-              given: res.status,
-              passed: check(res.status, step.check.status)
+              given: res.statusCode,
+              passed: check(res.statusCode, step.check.status)
             }
 
             if (!stepResult.checks.status.passed) {
@@ -645,8 +639,8 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
           if (step.check.statusText) {
             stepResult.checks.statusText = {
               expected: step.check.statusText,
-              given: res.statusText,
-              passed: check(res.statusText, step.check.statusText)
+              given: res.statusMessage,
+              passed: check(res.statusMessage, step.check.statusText)
             }
 
             if (!stepResult.checks.statusText.passed) {
@@ -664,20 +658,6 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
             }
 
             if (!stepResult.checks.ok.passed) {
-              workflowResult.passed = false
-              stepResult.passed = false
-            }
-          }
-
-          // Check Redirect
-          if (step.check['redirected']) {
-            stepResult.checks.redirected = {
-              expected: step.check.redirected,
-              given: res.redirected,
-              passed: res.redirected === step.check.redirected
-            }
-
-            if (!stepResult.checks.redirected.passed) {
               workflowResult.passed = false
               stepResult.passed = false
             }

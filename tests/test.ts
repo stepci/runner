@@ -1,5 +1,4 @@
-import { run } from '../src/index'
-import { EventEmitter } from 'node:events'
+import { run } from '../src/index.js'
 
 // Example workflow
 const workflow = {
@@ -7,6 +6,9 @@ const workflow = {
   name: "Status Test",
   env: {
     host: "example.com"
+  },
+  options: {
+    continueOnFail: true
   },
   "steps": [
   {
