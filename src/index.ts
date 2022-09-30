@@ -114,7 +114,6 @@ type WorkflowStepCheck = {
   statusText?: string | WorkflowMatcher[]
   headers?: WorkflowStepCheckValue | WorkflowStepCheckMatcher
   body?: string | WorkflowMatcher[]
-  duration?: number | WorkflowMatcher[]
   json?: object | string
   jsonschema?: object | string
   jsonexample?: object | string
@@ -123,6 +122,7 @@ type WorkflowStepCheck = {
   selector?: WorkflowStepCheckValue | WorkflowStepCheckMatcher
   cookies?: WorkflowStepCheckValue | WorkflowStepCheckMatcher
   sha256?: string
+  performance?: WorkflowStepCheckPerformance | WorkflowStepCheckMatcher
 }
 
 type WorkflowStepCheckValue = {
@@ -131,6 +131,10 @@ type WorkflowStepCheckValue = {
 
 type WorkflowStepCheckJSONPath = {
   [key: string]: object
+}
+
+type WorkflowStepCheckPerformance = {
+  [key: string]: number
 }
 
 type WorkflowStepCheckMatcher = {
@@ -201,9 +205,9 @@ type WorkflowResultCheck = {
   cookies?: WorkflowResultCheckResults
   status?: WorkflowResultCheckResult
   statusText?: WorkflowResultCheckResult
-  duration?: WorkflowResultCheckResult
   body?: WorkflowResultCheckResult
   sha256?: WorkflowResultCheckResult
+  performance?: WorkflowResultCheckResults
 }
 
 type WorkflowResultCheckResult = {
@@ -646,20 +650,6 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
             }
           }
 
-          // Check duration
-          if (step.check.duration) {
-            stepResult.checks.duration = {
-              expected: step.check.duration,
-              given: res.timings.phases.total,
-              passed: check(res.timings.phases.total, step.check.duration)
-            }
-
-            if (!stepResult.checks.duration.passed) {
-              workflowResult.passed = false
-              stepResult.passed = false
-            }
-          }
-
           // Check hash (binary blobs)
           if (step.check.sha256) {
             const hash = crypto.createHash('sha256').update(Buffer.from(responseData)).digest('hex')
@@ -672,6 +662,24 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
             if (!stepResult.checks.sha256.passed) {
               workflowResult.passed = false
               stepResult.passed = false
+            }
+          }
+
+          // Check Performance
+          if (step.check.performance){
+            stepResult.checks.performance = {}
+
+            for (const metric in step.check.performance){
+              stepResult.checks.performance[metric] = {
+                expected: step.check.performance[metric],
+                given: (res.timings.phases as any)[metric],
+                passed: check((res.timings.phases as any)[metric], step.check.performance[metric])
+              }
+
+              if (!stepResult.checks.performance[metric].passed){
+                workflowResult.passed = false
+                stepResult.passed = false
+              }
             }
           }
         }

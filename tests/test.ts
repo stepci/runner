@@ -63,12 +63,14 @@ const workflow = {
     }
   },
   {
-    "name": "JSON",
+    "name": "Performance",
     "url": "https://jsonplaceholder.typicode.com/posts/1",
     "method": "GET",
     "check": {
-      "headers": {
-        "Content-Type": "application/json; charset=utf-8"
+      "performance": {
+        "firstByte": [{
+          "lte": 20
+        }]
       }
     }
   }]
