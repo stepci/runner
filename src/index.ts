@@ -28,6 +28,7 @@ type Workflow = {
 
 type WorkflowConfig = {
   continueOnFail?: boolean
+  rejectUnauthorized?: boolean
 }
 
 type WorkflowOptions = {
@@ -54,7 +55,7 @@ type WorkflowStep = {
   auth?: WorkflowStepAuth
   json?: object
   graphql?: WorkflowStepGraphQL
-  captures?: WorkflowStepCaptures[]
+  captures?: WorkflowStepCaptures
   followRedirects?: boolean
   check?: WorkflowStepCheck
   timeout?: number
@@ -99,7 +100,10 @@ type WorkflowStepGraphQL = {
 }
 
 type WorkflowStepCaptures = {
-  name: string
+  [key: string]: WorkflowStepCapture
+}
+
+type WorkflowStepCapture = {
   xpath?: string
   jsonpath?: string
   header?: string
@@ -407,6 +411,7 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
           timeout: step.timeout,
           cookieJar: cookies,
           https: {
+            rejectUnauthorized: workflow.config?.rejectUnauthorized !== undefined ? workflow.config?.rejectUnauthorized : false,
             checkServerIdentity(hostname, certificate) {
               sslCertificate = certificate
             }
@@ -432,31 +437,33 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
 
         // Captures
         if (step.captures) {
-          step.captures.forEach((capture) => {
+          for (const name in step.captures) {
+            const capture = step.captures[name]
+
             if (capture.jsonpath) {
               const json = JSON.parse(body)
-              captures[capture.name] = JSONPath({ path: capture.jsonpath, json })[0]
+              captures[name] = JSONPath({ path: capture.jsonpath, json })[0]
             }
 
             if (capture.xpath) {
               const dom = new DOMParser().parseFromString(body)
               const result = xpath.select(capture.xpath, dom)
-              captures[capture.name] = result.length > 0 ? (result[0] as any).firstChild.data : undefined
+              captures[name] = result.length > 0 ? (result[0] as any).firstChild.data : undefined
             }
 
             if (capture.header) {
-              captures[capture.name] = res.headers[capture.header]
+              captures[name] = res.headers[capture.header]
             }
 
             if (capture.selector) {
               const dom = cheerio.load(body)
-              captures[capture.name] = dom(capture.selector).html()
+              captures[name] = dom(capture.selector).html()
             }
 
             if (capture.cookie) {
-              captures[capture.name] = getCookie(cookies, capture.cookie, res.url)
+              captures[name] = getCookie(cookies, capture.cookie, res.url)
             }
-          })
+          }
         }
 
         if (step.check) {
