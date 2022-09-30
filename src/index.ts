@@ -15,6 +15,7 @@ import yaml from 'yaml'
 import deepEqual from 'deep-equal'
 import JSONSchema from 'jsonschema'
 import toJsonSchema from 'to-json-schema'
+import { DetailedPeerCertificate } from 'node:tls'
 
 type Workflow = {
   version: string
@@ -22,10 +23,10 @@ type Workflow = {
   path?: string
   env?: object
   steps: WorkflowStep[]
-  options?: WorkflowStepOptions
+  config?: WorkflowConfig
 }
 
-type WorkflowStepOptions = {
+type WorkflowConfig = {
   continueOnFail?: boolean
 }
 
@@ -124,8 +125,11 @@ type WorkflowStepCheck = {
   xpath?: WorkflowStepCheckValue | WorkflowStepCheckMatcher
   selector?: WorkflowStepCheckValue | WorkflowStepCheckMatcher
   cookies?: WorkflowStepCheckValue | WorkflowStepCheckMatcher
+  captures?: WorkflowStepCheckCaptures
   sha256?: string
+  md5?: string
   performance?: WorkflowStepCheckPerformance | WorkflowStepCheckMatcher
+  ssl?: WorkflowStepCheckSSL | WorkflowStepCheckMatcher
 }
 
 type WorkflowStepCheckValue = {
@@ -138,6 +142,15 @@ type WorkflowStepCheckJSONPath = {
 
 type WorkflowStepCheckPerformance = {
   [key: string]: number
+}
+
+type WorkflowStepCheckCaptures = {
+  [key: string]: any
+}
+
+type WorkflowStepCheckSSL = {
+  expired?: boolean
+  daysUntilExpiration?: number | WorkflowMatcher[]
 }
 
 type WorkflowStepCheckMatcher = {
@@ -207,11 +220,14 @@ type WorkflowResultCheck = {
   xpath?: WorkflowResultCheckResults
   selector?: WorkflowResultCheckResults
   cookies?: WorkflowResultCheckResults
+  captures?: WorkflowResultCheckResults
   status?: WorkflowResultCheckResult
   statusText?: WorkflowResultCheckResult
   body?: WorkflowResultCheckResult
   sha256?: WorkflowResultCheckResult
+  md5?: WorkflowResultCheckResult
   performance?: WorkflowResultCheckResults
+  ssl?: WorkflowResultCheckSSL
 }
 
 type WorkflowResultCheckResult = {
@@ -222,6 +238,11 @@ type WorkflowResultCheckResult = {
 
 type WorkflowResultCheckResults = {
   [key: string]: WorkflowResultCheckResult
+}
+
+type WorkflowResultCheckSSL = {
+  expired?: WorkflowResultCheckResult
+  daysUntilExpiration?: WorkflowResultCheckResult
 }
 
 // Matchers
@@ -264,8 +285,13 @@ function checkCondition (expression: string, data: WorkflowConditions): boolean 
 }
 
 // Get cookie
-function getCookie (store: CookieJar, name: string, url: string) {
+function getCookie (store: CookieJar, name: string, url: string): string {
   return store.getCookiesSync(url).filter(cookie => cookie.key === name)[0]?.value
+}
+
+// Run from YAML string
+export function runFromYAML (yamlString: string, options?: WorkflowOptions): Promise<WorkflowResult> {
+  return run(yaml.parse(yamlString), options)
 }
 
 // Run from workflow file
@@ -297,7 +323,7 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
     }
 
     // Skip current step is the previous one failed or condition was unmet
-    if (!workflow.options?.continueOnFail && (previous && !previous.passed)) {
+    if (!workflow.config?.continueOnFail && (previous && !previous.passed)) {
       stepResult.passed = false
       stepResult.failReason = 'Step was skipped because previous one failed'
       stepResult.skipped = true
@@ -307,7 +333,7 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
       try {
         // Parse template
         step = JSON.parse(mustache.render(JSON.stringify(step), { captures, env: workflow.env, secrets: options?.secrets }))
-        let requestBody: string | FormData | Buffer | undefined = undefined
+        let requestBody: string | FormData | Buffer | undefined
 
         // Body
         if (step.body) {
@@ -370,6 +396,7 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
         }
 
         // Make a request
+        let sslCertificate: DetailedPeerCertificate | undefined
         const res = await got(step.url, {
           method: step.method as Method,
           headers: { ...step.headers },
@@ -378,7 +405,12 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
           throwHttpErrors: false,
           followRedirect: step.followRedirects !== undefined ? step.followRedirects : true,
           timeout: step.timeout,
-          cookieJar: cookies
+          cookieJar: cookies,
+          https: {
+            checkServerIdentity(hostname, certificate) {
+              sslCertificate = certificate
+            }
+          }
         })
         .on('request', request => options?.ee?.emit('request', request))
         .on('response', response => options?.ee?.emit('response', response))
@@ -594,6 +626,24 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
             }
           }
 
+          // Check captures
+          if (step.check.captures) {
+            stepResult.checks.captures = {}
+
+            for (const capture in step.check.captures) {
+              stepResult.checks.captures[capture] = {
+                expected: step.check.captures[capture],
+                given: captures[capture],
+                passed: check(captures[capture], step.check.captures[capture])
+              }
+
+              if (!stepResult.checks.captures[capture].passed) {
+                workflowResult.passed = false
+                stepResult.passed = false
+              }
+            }
+          }
+
           // Check status
           if (step.check.status) {
             stepResult.checks.status = {
@@ -650,7 +700,7 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
             }
           }
 
-          // Check hash (binary blobs)
+          // Check sha256
           if (step.check.sha256) {
             const hash = crypto.createHash('sha256').update(Buffer.from(responseData)).digest('hex')
             stepResult.checks.sha256 = {
@@ -660,6 +710,21 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
             }
 
             if (!stepResult.checks.sha256.passed) {
+              workflowResult.passed = false
+              stepResult.passed = false
+            }
+          }
+
+          // Check md5
+          if (step.check.md5) {
+            const hash = crypto.createHash('md5').update(Buffer.from(responseData)).digest('hex')
+            stepResult.checks.md5 = {
+              expected: step.check.md5,
+              given: hash,
+              passed: step.check.md5 === hash
+            }
+
+            if (!stepResult.checks.md5.passed) {
               workflowResult.passed = false
               stepResult.passed = false
             }
@@ -679,6 +744,30 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
               if (!stepResult.checks.performance[metric].passed){
                 workflowResult.passed = false
                 stepResult.passed = false
+              }
+            }
+          }
+
+          // Check SSL certs
+          if (step.check.ssl && sslCertificate) {
+            stepResult.checks.ssl = {}
+            const expirationDate = new Date(sslCertificate.valid_to)
+            const isExpired = new Date() > expirationDate
+            const daysRemaining = Math.round(Math.abs(new Date().valueOf() - expirationDate.valueOf()) / (24 * 60 * 60 * 1000))
+
+            if ('expired' in step.check.ssl) {
+              stepResult.checks.ssl.expired = {
+                expected: step.check.ssl.expired,
+                given: isExpired,
+                passed: isExpired === step.check.ssl.expired
+              }
+            }
+
+            if (step.check.ssl.daysUntilExpiration) {
+              stepResult.checks.ssl.daysUntilExpiration = {
+                expected: step.check.ssl.daysUntilExpiration,
+                given: daysRemaining,
+                passed: check(daysRemaining, step.check.ssl.daysUntilExpiration)
               }
             }
           }

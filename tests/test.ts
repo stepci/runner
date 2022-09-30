@@ -11,8 +11,7 @@ const workflow = {
   options: {
     continueOnFail: true
   },
-  "steps": [
-  {
+  "steps": [{
     "name": "Redirect",
     "url": "https://httpbin.org/redirect-to",
     "method": "GET",
@@ -71,6 +70,19 @@ const workflow = {
       "performance": {
         "firstByte": [{
           "lte": 20
+        }]
+      }
+    }
+  },
+  {
+    "name": "SSL",
+    "method": "GET",
+    "url": "https://example.com",
+    "check": {
+      "ssl": {
+        "expired": false,
+        "daysUntilExpiration": [{
+          "gte": 60
         }]
       }
     }
