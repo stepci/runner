@@ -437,8 +437,8 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
             for (const header in step.check.headers){
               stepResult.checks.headers[header] = {
                 expected: step.check.headers[header],
-                given: res.headers[header],
-                passed: check(res.headers[header], step.check.headers[header])
+                given: res.headers[header.toLowerCase()],
+                passed: check(res.headers[header.toLowerCase()], step.check.headers[header])
               }
 
               if (!stepResult.checks.headers[header].passed){

@@ -67,9 +67,8 @@ const workflow = {
     "url": "https://jsonplaceholder.typicode.com/posts/1",
     "method": "GET",
     "check": {
-      "status": 200,
-      "jsonexample": {
-        "wow": 1
+      "headers": {
+        "Content-Type": "application/json; charset=utf-8"
       }
     }
   }]
