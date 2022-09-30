@@ -1,6 +1,6 @@
 {
   "name": "@stepci/runner",
-  "version": "0.4.5",
+  "version": "0.4.6",
   "description": "Step CI Runner",
   "main": "dist/index.js",
   "scripts": {
@@ -34,7 +34,6 @@
     "jsonpath-plus": "^7.2.0",
     "jsonschema": "^1.4.1",
     "mustache": "^4.2.0",
-    "node-fetch": "^2.6.7",
     "to-json-schema": "^0.2.5",
     "tough-cookie": "^4.1.2",
     "xmldom": "^0.6.0",
@@ -47,7 +46,6 @@
     "@types/flat": "^5.0.2",
     "@types/mustache": "^4.2.1",
     "@types/node": "^18.7.18",
-    "@types/node-fetch": "^2.6.2",
     "@types/to-json-schema": "^0.2.1",
     "@types/tough-cookie": "^4.0.2",
     "@types/xmldom": "^0.1.31",
