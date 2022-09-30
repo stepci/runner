@@ -33,7 +33,8 @@ const workflow = {
     "check": {
       "status": 200,
       "cookies": {
-        "wows": "world"
+        "wows": "world",
+        "kek": "kek"
       }
     },
   },
@@ -77,4 +78,4 @@ const workflow = {
 }
 
 const ee = new EventEmitter()
-run(workflow, { ee }).then(( {result }) => console.log(result))
+run(workflow, { ee }).then(({ result }) => console.log(result))

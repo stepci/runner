@@ -265,7 +265,7 @@ function checkCondition (expression: string, data: WorkflowConditions): boolean 
 
 // Get cookie
 function getCookie (store: CookieJar, name: string, url: string) {
-  return store.getCookiesSync(url).filter(cookie => cookie.key === name)[0].value
+  return store.getCookiesSync(url).filter(cookie => cookie.key === name)[0]?.value
 }
 
 // Run from workflow file
