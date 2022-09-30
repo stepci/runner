@@ -187,7 +187,8 @@ type WorkflowResultRequest = {
 type WorkflowResultResponse = {
   status: number
   statusText?: string
-  duration: number
+  duration?: number
+  timings: any
 }
 
 type WorkflowResultCheck = {
@@ -372,7 +373,6 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
         }
 
         // Make a request
-        const requestStart = Date.now()
         const res = await got(step.url, {
           method: step.method as Method,
           headers: { ...step.headers },
@@ -385,7 +385,6 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
 
         const responseData = res.rawBody
         const body = await new TextDecoder().decode(responseData)
-        const requestDuration = Date.now() - requestStart
 
         stepResult.request = {
           url: res.url,
@@ -395,7 +394,8 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
         stepResult.response = {
           status: res.statusCode,
           statusText: res.statusMessage,
-          duration: requestDuration
+          duration: res.timings.phases.total,
+          timings: res.timings
         }
 
         // Captures
@@ -667,8 +667,8 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
           if (step.check.duration) {
             stepResult.checks.duration = {
               expected: step.check.duration,
-              given: requestDuration,
-              passed: check(requestDuration, step.check.duration)
+              given: res.timings.phases.total,
+              passed: check(res.timings.phases.total, step.check.duration)
             }
 
             if (!stepResult.checks.duration.passed) {
