@@ -380,6 +380,8 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
           timeout: step.timeout,
           cookieJar: cookies
         })
+        .on('request', request => options?.ee?.emit('request', request))
+        .on('response', response => options?.ee?.emit('response', response))
 
         const responseData = res.rawBody
         const body = await new TextDecoder().decode(responseData)
@@ -620,6 +622,34 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
             }
           }
 
+          // Check whether request was redirected
+          if ('redirected' in step.check) {
+            stepResult.checks.redirected = {
+              expected: step.check.redirected,
+              given: res.redirectUrls.length > 0,
+              passed: res.redirectUrls.length > 0 === step.check.redirected
+            }
+
+            if (!stepResult.checks.redirected.passed) {
+              workflowResult.passed = false
+              stepResult.passed = false
+            }
+          }
+
+          // Check redirects
+          if (step.check.redirects) {
+            stepResult.checks.redirects = {
+              expected: step.check.redirects,
+              given: res.redirectUrls,
+              passed: deepEqual(res.redirectUrls, step.check.redirects)
+            }
+
+            if (!stepResult.checks.redirects.passed) {
+              workflowResult.passed = false
+              stepResult.passed = false
+            }
+          }
+
           // Check hash (binary blobs)
           if (step.check.sha256) {
             const hash = crypto.createHash('sha256').update(Buffer.from(responseData)).digest('hex')
@@ -652,51 +682,23 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
               }
             }
           }
-
-          // Check whether request was redirected
-          if ('redirected' in step.check) {
-            stepResult.checks.redirected = {
-              expected: step.check.redirected,
-              given: res.redirectUrls.length > 0,
-              passed: res.redirectUrls.length > 0 === step.check.redirected
-            }
-
-            if (!stepResult.checks.redirected.passed) {
-              workflowResult.passed = false
-              stepResult.passed = false
-            }
-          }
-
-          // Check redirects
-          if (step.check.redirects) {
-            stepResult.checks.redirects = {
-              expected: step.check.redirects,
-              given: res.redirectUrls,
-              passed: deepEqual(res.redirectUrls, step.check.redirects)
-            }
-
-            if (!stepResult.checks.redirects.passed) {
-              workflowResult.passed = false
-              stepResult.passed = false
-            }
-          }
         }
       } catch (error) {
         workflowResult.passed = false
         stepResult.failed = true
         stepResult.failReason = (error as Error).message
         stepResult.passed = false
-        if (options?.ee) options.ee.emit('error', error)
+        options?.ee?.emit('error', error)
       }
     }
 
     stepResult.duration = Date.now() - stepResult.timestamp
     previous = stepResult
-    if (options?.ee) options.ee.emit('result', stepResult)
+    options?.ee?.emit('result', stepResult)
     workflowResult.result.push(stepResult)
   }
 
   workflowResult.duration = Date.now() - workflowResult.timestamp
-  if (options?.ee) options.ee.emit('done', workflowResult)
+  options?.ee?.emit('done', workflowResult)
   return workflowResult
 }
