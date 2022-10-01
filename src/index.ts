@@ -29,6 +29,7 @@ type Workflow = {
 type WorkflowConfig = {
   continueOnFail?: boolean
   rejectUnauthorized?: boolean
+  http2?: boolean
 }
 
 type WorkflowOptions = {
@@ -42,7 +43,7 @@ type WorkflowOptionsSecrets = {
 
 type WorkflowStep = {
   id?: string
-  name: string
+  name?: string
   if?: string
   url: string
   method: string
@@ -109,6 +110,7 @@ type WorkflowStepCapture = {
   header?: string
   selector?: string
   cookie?: string
+  regex?: string
 }
 
 type WorkflowStepCapturesStorage = {
@@ -154,6 +156,7 @@ type WorkflowStepCheckCaptures = {
 
 type WorkflowStepCheckSSL = {
   expired?: boolean
+  signed?: boolean
   daysUntilExpiration?: number | WorkflowMatcher[]
 }
 
@@ -189,12 +192,13 @@ type WorkflowResult = {
 }
 
 type WorkflowStepResult = {
-  name: string
+  id?: string
+  name?: string
   checks?: WorkflowResultCheck
-  failed?: boolean
+  failed: boolean
   failReason?: string
   passed: boolean
-  skipped?: boolean
+  skipped: boolean
   timestamp: number
   duration: number
   request?: WorkflowResultRequest
@@ -246,6 +250,7 @@ type WorkflowResultCheckResults = {
 
 type WorkflowResultCheckSSL = {
   expired?: WorkflowResultCheckResult
+  signed?: WorkflowResultCheckResult
   daysUntilExpiration?: WorkflowResultCheckResult
 }
 
@@ -320,9 +325,12 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
 
   for (let step of workflow.steps) {
     const stepResult: WorkflowStepResult = {
+      id: step.id,
       name: step.name,
       timestamp: Date.now(),
       passed: true,
+      failed: false,
+      skipped: false,
       duration: 0
     }
 
@@ -410,6 +418,7 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
           followRedirect: step.followRedirects !== undefined ? step.followRedirects : true,
           timeout: step.timeout,
           cookieJar: cookies,
+          http2: workflow.config?.http2 !== undefined ? workflow.config?.http2 : true,
           https: {
             rejectUnauthorized: workflow.config?.rejectUnauthorized !== undefined ? workflow.config?.rejectUnauthorized : false,
             checkServerIdentity(hostname, certificate) {
@@ -462,6 +471,10 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
 
             if (capture.cookie) {
               captures[name] = getCookie(cookies, capture.cookie, res.url)
+            }
+
+            if (capture.regex) {
+              captures[name] = body.match(capture.regex)?.[1]
             }
           }
         }
@@ -761,6 +774,7 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
             const expirationDate = new Date(sslCertificate.valid_to)
             const isExpired = new Date() > expirationDate
             const daysRemaining = Math.round(Math.abs(new Date().valueOf() - expirationDate.valueOf()) / (24 * 60 * 60 * 1000))
+            const isSigned = sslCertificate.issuer.CN !== sslCertificate.subject.CN
 
             if ('expired' in step.check.ssl) {
               stepResult.checks.ssl.expired = {
@@ -770,6 +784,19 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
               }
 
               if (!stepResult.checks.ssl.expired.passed) {
+                workflowResult.passed = false
+                stepResult.passed = false
+              }
+            }
+
+            if ('signed' in step.check.ssl) {
+              stepResult.checks.ssl.signed = {
+                expected: step.check.ssl.signed,
+                given: isSigned,
+                passed: isSigned === step.check.ssl.signed
+              }
+
+              if (!stepResult.checks.ssl.signed.passed) {
                 workflowResult.passed = false
                 stepResult.passed = false
               }
