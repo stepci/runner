@@ -772,15 +772,15 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
           if (step.check.ssl && sslCertificate) {
             stepResult.checks.ssl = {}
             const expirationDate = new Date(sslCertificate.valid_to)
-            const isExpired = new Date() > expirationDate
+            const isValid = expirationDate > new Date()
             const daysRemaining = Math.round(Math.abs(new Date().valueOf() - expirationDate.valueOf()) / (24 * 60 * 60 * 1000))
             const isSigned = sslCertificate.issuer.CN !== sslCertificate.subject.CN
 
             if ('valid' in step.check.ssl) {
               stepResult.checks.ssl.valid = {
                 expected: step.check.ssl.valid,
-                given: isExpired,
-                passed: isExpired !== step.check.ssl.valid
+                given: isValid,
+                passed: isValid === step.check.ssl.valid
               }
 
               if (!stepResult.checks.ssl.valid.passed) {

@@ -98,7 +98,7 @@ const workflow = {
     },
     "check": {
       "ssl": {
-        "expired": false,
+        "valid": true,
         "signed": true,
         "daysUntilExpiration": [{
           "gte": 60
