@@ -215,6 +215,13 @@ type WorkflowResultResponse = {
   statusText?: string
   duration?: number
   timings: any
+  ssl?: WorkflowResultResponseSSL
+}
+
+type WorkflowResultResponseSSL = {
+  valid: boolean
+  signed: boolean
+  daysUntilExpiration: number
 }
 
 type WorkflowResultCheck = {
@@ -442,6 +449,14 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
           statusText: res.statusMessage,
           duration: res.timings.phases.total,
           timings: res.timings
+        }
+
+        if (sslCertificate) {
+          stepResult.response.ssl = {
+            valid: new Date(sslCertificate.valid_to) > new Date(),
+            signed: sslCertificate.issuer.CN !== sslCertificate.subject.CN,
+            daysUntilExpiration: Math.round(Math.abs(new Date().valueOf() - new Date(sslCertificate.valid_to).valueOf()) / (24 * 60 * 60 * 1000))
+          }
         }
 
         // Captures
@@ -771,16 +786,11 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
           // Check SSL certs
           if (step.check.ssl && sslCertificate) {
             stepResult.checks.ssl = {}
-            const expirationDate = new Date(sslCertificate.valid_to)
-            const isValid = expirationDate > new Date()
-            const daysRemaining = Math.round(Math.abs(new Date().valueOf() - expirationDate.valueOf()) / (24 * 60 * 60 * 1000))
-            const isSigned = sslCertificate.issuer.CN !== sslCertificate.subject.CN
-
             if ('valid' in step.check.ssl) {
               stepResult.checks.ssl.valid = {
                 expected: step.check.ssl.valid,
-                given: isValid,
-                passed: isValid === step.check.ssl.valid
+                given: stepResult.response.ssl?.valid,
+                passed: stepResult.response.ssl?.valid === step.check.ssl.valid
               }
 
               if (!stepResult.checks.ssl.valid.passed) {
@@ -792,8 +802,8 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
             if ('signed' in step.check.ssl) {
               stepResult.checks.ssl.signed = {
                 expected: step.check.ssl.signed,
-                given: isSigned,
-                passed: isSigned === step.check.ssl.signed
+                given: stepResult.response.ssl?.signed,
+                passed: stepResult.response.ssl?.signed === step.check.ssl.signed
               }
 
               if (!stepResult.checks.ssl.signed.passed) {
@@ -805,8 +815,8 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
             if (step.check.ssl.daysUntilExpiration) {
               stepResult.checks.ssl.daysUntilExpiration = {
                 expected: step.check.ssl.daysUntilExpiration,
-                given: daysRemaining,
-                passed: check(daysRemaining, step.check.ssl.daysUntilExpiration)
+                given: stepResult.response.ssl?.daysUntilExpiration,
+                passed: check(stepResult.response.ssl?.daysUntilExpiration, step.check.ssl.daysUntilExpiration)
               }
 
               if (!stepResult.checks.ssl.daysUntilExpiration.passed) {
