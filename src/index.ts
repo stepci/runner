@@ -155,7 +155,7 @@ type WorkflowStepCheckCaptures = {
 }
 
 type WorkflowStepCheckSSL = {
-  expired?: boolean
+  valid?: boolean
   signed?: boolean
   daysUntilExpiration?: number | WorkflowMatcher[]
 }
@@ -249,7 +249,7 @@ type WorkflowResultCheckResults = {
 }
 
 type WorkflowResultCheckSSL = {
-  expired?: WorkflowResultCheckResult
+  valid?: WorkflowResultCheckResult
   signed?: WorkflowResultCheckResult
   daysUntilExpiration?: WorkflowResultCheckResult
 }
@@ -776,14 +776,14 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
             const daysRemaining = Math.round(Math.abs(new Date().valueOf() - expirationDate.valueOf()) / (24 * 60 * 60 * 1000))
             const isSigned = sslCertificate.issuer.CN !== sslCertificate.subject.CN
 
-            if ('expired' in step.check.ssl) {
-              stepResult.checks.ssl.expired = {
-                expected: step.check.ssl.expired,
+            if ('valid' in step.check.ssl) {
+              stepResult.checks.ssl.valid = {
+                expected: step.check.ssl.valid,
                 given: isExpired,
-                passed: isExpired === step.check.ssl.expired
+                passed: isExpired !== step.check.ssl.valid
               }
 
-              if (!stepResult.checks.ssl.expired.passed) {
+              if (!stepResult.checks.ssl.valid.passed) {
                 workflowResult.passed = false
                 stepResult.passed = false
               }
