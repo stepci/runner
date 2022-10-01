@@ -221,6 +221,7 @@ type WorkflowResultResponse = {
 type WorkflowResultResponseSSL = {
   valid: boolean
   signed: boolean
+  validUntil: Date
   daysUntilExpiration: number
 }
 
@@ -455,6 +456,7 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
           stepResult.response.ssl = {
             valid: new Date(sslCertificate.valid_to) > new Date(),
             signed: sslCertificate.issuer.CN !== sslCertificate.subject.CN,
+            validUntil: new Date(sslCertificate.valid_to),
             daysUntilExpiration: Math.round(Math.abs(new Date().valueOf() - new Date(sslCertificate.valid_to).valueOf()) / (24 * 60 * 60 * 1000))
           }
         }
