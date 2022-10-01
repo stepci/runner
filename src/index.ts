@@ -46,7 +46,7 @@ type WorkflowStep = {
   name?: string
   if?: string
   url: string
-  method: string
+  method?: string
   headers?: WorkflowStepHeaders
   params?: WorkflowStepParams
   cookies?: WorkflowStepCookies
@@ -63,7 +63,8 @@ type WorkflowStep = {
 }
 
 type WorkflowConditions = {
-  captures?: WorkflowStepCapturesStorage
+  captures?: WorkflowCapturesStorage
+  env?: object
 }
 
 type WorkflowStepHeaders = {
@@ -113,7 +114,7 @@ type WorkflowStepCapture = {
   regex?: string
 }
 
-type WorkflowStepCapturesStorage = {
+type WorkflowCapturesStorage = {
   [key: string]: any
 }
 
@@ -195,8 +196,8 @@ type WorkflowStepResult = {
   id?: string
   name?: string
   checks?: WorkflowResultCheck
-  failed: boolean
-  failReason?: string
+  errored: boolean
+  errorMessage?: string
   passed: boolean
   skipped: boolean
   timestamp: number
@@ -207,7 +208,7 @@ type WorkflowStepResult = {
 
 type WorkflowResultRequest = {
   url: string
-  method: string
+  method?: string
 }
 
 type WorkflowResultResponse = {
@@ -327,7 +328,7 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
     duration: 0
   }
 
-  const captures: WorkflowStepCapturesStorage = {}
+  const captures: WorkflowCapturesStorage = {}
   const cookies = new CookieJar()
   let previous: WorkflowStepResult | undefined
 
@@ -337,7 +338,7 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
       name: step.name,
       timestamp: Date.now(),
       passed: true,
-      failed: false,
+      errored: false,
       skipped: false,
       duration: 0
     }
@@ -345,9 +346,9 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
     // Skip current step is the previous one failed or condition was unmet
     if (!workflow.config?.continueOnFail && (previous && !previous.passed)) {
       stepResult.passed = false
-      stepResult.failReason = 'Step was skipped because previous one failed'
+      stepResult.errorMessage = 'Step was skipped because previous one failed'
       stepResult.skipped = true
-    } else if (step.if && !checkCondition(step.if, { captures })) {
+    } else if (step.if && !checkCondition(step.if, { captures, env: workflow.env })) {
       stepResult.skipped = true
     } else {
       try {
@@ -830,8 +831,8 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
         }
       } catch (error) {
         workflowResult.passed = false
-        stepResult.failed = true
-        stepResult.failReason = (error as Error).message
+        stepResult.errored = true
+        stepResult.errorMessage = (error as Error).message
         stepResult.passed = false
         options?.ee?.emit('error', error)
       }
