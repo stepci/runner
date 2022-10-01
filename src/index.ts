@@ -418,7 +418,7 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
           followRedirect: step.followRedirects !== undefined ? step.followRedirects : true,
           timeout: step.timeout,
           cookieJar: cookies,
-          http2: workflow.config?.http2 !== undefined ? workflow.config?.http2 : true,
+          http2: workflow.config?.http2 !== undefined ? workflow.config?.http2 : false,
           https: {
             rejectUnauthorized: workflow.config?.rejectUnauthorized !== undefined ? workflow.config?.rejectUnauthorized : false,
             checkServerIdentity(hostname, certificate) {
