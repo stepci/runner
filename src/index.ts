@@ -210,7 +210,7 @@ type Matcher = {
 type TestResult = {
   id: string
   name?: string
-  result: TestStepResult[]
+  steps: TestStepResult[]
   passed: boolean
   timestamp: Date
   duration: number
@@ -291,7 +291,7 @@ type TestResultCheckSSL = {
 function check (given: any, expected: Matcher[] | any) : boolean {
   if (typeof expected === 'object') {
     return expected.map((test: Matcher) => {
-      if (test.eq) return given === test.eq
+      if (test.eq) return deepEqual(given, test.eq)
       if (test.ne) return given !== test.ne
       if (test.gt) return given > test.gt
       if (test.gte) return given >= test.gte
@@ -317,7 +317,7 @@ function check (given: any, expected: Matcher[] | any) : boolean {
     return regex.test(given)
   }
 
-  return given === expected
+  return deepEqual(given, expected)
 }
 
 // Check if expression
@@ -336,9 +336,9 @@ function didChecksPass (stepResult: TestStepResult) {
   if (!stepResult.checks) return true
 
   return Object.values(stepResult.checks as object).map(check => {
-    return check['passed'] ? check.passed : Object.values(check).map((c: any) => c.passed).every(c => c.passed)
+    return check['passed'] ? check.passed : Object.values(check).map((c: any) => c.passed).every(passed => passed)
   })
-  .every(check => check)
+  .every(passed => passed)
 }
 
 // Run from YAML string
@@ -347,8 +347,8 @@ export function runFromYAML (yamlString: string, options?: WorkflowOptions): Pro
 }
 
 // Run from test file
-export function runFromFile (path: string, options?: WorkflowOptions): Promise<WorkflowResult> {
-  const testFile = fs.readFileSync(path).toString()
+export async function runFromFile (path: string, options?: WorkflowOptions): Promise<WorkflowResult> {
+  const testFile = (await fs.promises.readFile(path)).toString()
   const config = yaml.parse(testFile)
   return run({ ...config, path }, options)
 }
@@ -375,7 +375,7 @@ async function runTest (id: string, test: Test, options?: WorkflowOptions, confi
   const testResult: TestResult = {
     id,
     name: test.name,
-    result: [],
+    steps: [],
     passed: true,
     timestamp: new Date(),
     duration: 0
@@ -781,24 +781,25 @@ async function runTest (id: string, test: Test, options?: WorkflowOptions, confi
             }
           }
         }
+
+        stepResult.passed = didChecksPass(stepResult)
       } catch (error) {
+        stepResult.passed = false
         stepResult.errored = true
         stepResult.errorMessage = (error as Error).message
-        stepResult.passed = false
         options?.ee?.emit('step:error', error)
       }
     }
 
     stepResult.duration = Date.now() - stepResult.timestamp.valueOf()
-    stepResult.passed = didChecksPass(stepResult)
 
     previous = stepResult
-    testResult.result.push(stepResult)
+    testResult.steps.push(stepResult)
     options?.ee?.emit('step:result', stepResult)
   }
 
   testResult.duration = Date.now() - testResult.timestamp.valueOf()
-  testResult.passed = testResult.result.every(step => step.passed)
+  testResult.passed = testResult.steps.every(step => step.passed)
 
   options?.ee?.emit('test:result', testResult)
   return testResult
