@@ -28,6 +28,7 @@ type Workflow = {
 
 type WorkflowConfig = {
   rejectUnauthorized?: boolean
+  continueOnFail?: boolean
 }
 
 type WorkflowOptions = {
@@ -218,6 +219,7 @@ type TestResult = {
 
 type TestStepResult = {
   id?: string
+  workflowId: string
   name?: string
   checks?: TestResultCheck
   errored: boolean
@@ -387,6 +389,7 @@ async function runTest (id: string, test: Test, options?: WorkflowOptions, confi
   for (let step of test.steps) {
     const stepResult: TestStepResult = {
       id: step.id,
+      workflowId: id,
       name: step.name,
       timestamp: new Date(),
       passed: true,
@@ -396,7 +399,7 @@ async function runTest (id: string, test: Test, options?: WorkflowOptions, confi
     }
 
     // Skip current step is the previous one failed or condition was unmet
-    if (!test.config?.continueOnFail && (previous && !previous.passed)) {
+    if ((!test.config?.continueOnFail || !config?.continueOnFail) && (previous && !previous.passed)) {
       stepResult.passed = false
       stepResult.errorMessage = 'Step was skipped because previous one failed'
       stepResult.skipped = true
