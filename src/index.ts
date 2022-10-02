@@ -356,8 +356,7 @@ export async function runFromFile (path: string, options?: WorkflowOptions): Pro
 // Run workflow
 export async function run (workflow: Workflow, options?: WorkflowOptions): Promise<WorkflowResult> {
   const timestamp = new Date()
-  const runs = Object.values(workflow.tests).map((test, i) => runTest(Object.keys(workflow.tests)[i], test, options, workflow.config, workflow.env))
-  const tests = await Promise.all(runs)
+  const tests = await Promise.all(Object.values(workflow.tests).map((test, i) => runTest(Object.keys(workflow.tests)[i], test, options, workflow.config, workflow.env)))
   options?.ee?.emit('workflow:result', tests)
 
   return {
@@ -407,7 +406,6 @@ async function runTest (id: string, test: Test, options?: WorkflowOptions, confi
       try {
         // This line of code smeels like shit
         step = JSON.parse(mustache.render(JSON.stringify(step), { captures, env: { ...env, ...test.env }, secrets: options?.secrets }))
-        console.log(step.url)
         let requestBody: string | FormData | Buffer | undefined
 
         // Body
