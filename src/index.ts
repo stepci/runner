@@ -365,7 +365,7 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
       tests,
       passed: tests.every(test => test.passed),
       timestamp,
-      duration: tests.map(test => test.duration).reduce((a, b) => a + b)
+      duration: Date.now() - timestamp.valueOf()
     }
   }
 }
