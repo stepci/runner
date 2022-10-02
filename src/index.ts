@@ -401,12 +401,13 @@ async function runTest (id: string, test: Test, options?: WorkflowOptions, confi
       stepResult.passed = false
       stepResult.errorMessage = 'Step was skipped because previous one failed'
       stepResult.skipped = true
-    } else if (step.if && !checkCondition(step.if, { captures, env: { env, ...test.env } })) {
+    } else if (step.if && !checkCondition(step.if, { captures, env: { ...env, ...test.env } })) {
       stepResult.skipped = true
     } else {
       try {
         // This line of code smeels like shit
-        step = JSON.parse(mustache.render(JSON.stringify(step), { captures, env: { env, ...test.env }, secrets: options?.secrets }))
+        step = JSON.parse(mustache.render(JSON.stringify(step), { captures, env: { ...env, ...test.env }, secrets: options?.secrets }))
+        console.log(step.url)
         let requestBody: string | FormData | Buffer | undefined
 
         // Body
