@@ -794,13 +794,13 @@ async function runTest (id: string, test: Test, options?: WorkflowOptions, confi
     }
 
     stepResult.duration = Date.now() - stepResult.timestamp.valueOf()
-
-    previous = stepResult
     testResult.steps.push(stepResult)
+    previous = stepResult
+
     options?.ee?.emit('step:result', stepResult)
   }
 
-  testResult.duration = Date.now() - testResult.timestamp.valueOf()
+  testResult.duration = testResult.steps.map(step => step.duration).reduce((a, b) => a + b)
   testResult.passed = testResult.steps.every(step => step.passed)
 
   options?.ee?.emit('test:result', testResult)
