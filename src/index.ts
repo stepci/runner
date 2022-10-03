@@ -70,7 +70,7 @@ type TestStep = {
   name?: string
   if?: string
   url: string
-  method?: string
+  method: string
   headers?: TestStepHeaders
   params?: TestStepParams
   cookies?: TestStepCookies
@@ -234,7 +234,7 @@ type TestStepResult = {
 
 type TestResultRequest = {
   url: string
-  method?: string
+  method: string
 }
 
 type TestResultResponse = {
