@@ -29,14 +29,18 @@ const workflow = {
   env: {
     host: "example.com"
   },
-  steps: [{
-    name: "GET request",
-    url: "https://{{env.host}}",
-    method: "GET",
-    check: {
-      status: "/^20/"
+  tests: {
+    default: {
+      steps: [{
+        name: "GET request",
+        url: "https://{{env.host}}",
+        method: "GET",
+        check: {
+          status: "/^20/"
+        }
+      }]
     }
-  }]
+  }
 }
 
 run(workflow).then(console.log)
@@ -46,11 +50,12 @@ run(workflow).then(console.log)
 
 If you supply an `EventEmitter` as argument, you can subscribe to following events:
 
-- `request`, on request
-- `response`, on response
-- `result`, on a step completion
-- `done`, on a workflow completion
-- `error`, on workflow error
+- `step:request`, when a request is made
+- `step:response`, when a response is received
+- `step:result`, when step finishes
+- `step:error`, when step errors
+- `test:result`, when test finishes
+- `workflow:result`, when workflow finishes
 
 **Example: Events**
 
@@ -65,14 +70,18 @@ const workflow = {
   env: {
     host: "example.com"
   },
-  steps: [{
-    name: "GET request",
-    url: "https://{{env.host}}",
-    method: "GET",
-    check: {
-      status: "/^20/"
+  tests: {
+    default: {
+      steps: [{
+        name: "GET request",
+        url: "https://{{env.host}}",
+        method: "GET",
+        check: {
+          status: "/^20/"
+        }
+      }]
     }
-  }]
+  }
 }
 
 const ee = new EventEmitter()

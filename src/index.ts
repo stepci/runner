@@ -22,14 +22,13 @@ type Workflow = {
   name: string
   path?: string
   env?: object
-  steps: WorkflowStep[]
+  tests: Tests
   config?: WorkflowConfig
 }
 
 type WorkflowConfig = {
-  continueOnFail?: boolean
   rejectUnauthorized?: boolean
-  http2?: boolean
+  continueOnFail?: boolean
 }
 
 type WorkflowOptions = {
@@ -41,71 +40,96 @@ type WorkflowOptionsSecrets = {
   [key: string]: string
 }
 
-type WorkflowStep = {
+type WorkflowResult = {
+  workflow: Workflow
+  result: {
+    tests: TestResult[]
+    passed: boolean
+    timestamp: Date
+    duration: number
+  }
+}
+
+type Test = {
+  name?: string
+  env?: object
+  steps: TestStep[]
+  config?: TestConfig
+}
+
+type Tests = {
+  [key: string]: Test
+}
+
+type TestConfig = {
+  continueOnFail?: boolean
+}
+
+type TestStep = {
   id?: string
   name?: string
   if?: string
   url: string
-  method?: string
-  headers?: WorkflowStepHeaders
-  params?: WorkflowStepParams
-  cookies?: WorkflowStepCookies
-  body?: string | WorkflowStepFile
-  form?: WorkflowStepForm
-  formData?: WorkflowStepMultiPartForm
-  auth?: WorkflowStepAuth
+  method: string
+  headers?: TestStepHeaders
+  params?: TestStepParams
+  cookies?: TestStepCookies
+  body?: string | TestStepFile
+  form?: TestStepForm
+  formData?: TestStepMultiPartForm
+  auth?: TestStepAuth
   json?: object
-  graphql?: WorkflowStepGraphQL
-  captures?: WorkflowStepCaptures
+  graphql?: TestStepGraphQL
+  captures?: TestStepCaptures
   followRedirects?: boolean
-  check?: WorkflowStepCheck
+  check?: TestStepCheck
   timeout?: number
 }
 
-type WorkflowConditions = {
-  captures?: WorkflowCapturesStorage
+type TestConditions = {
+  captures?: CapturesStorage
   env?: object
 }
 
-type WorkflowStepHeaders = {
+type TestStepHeaders = {
   [key: string]: string
 }
 
-type WorkflowStepParams = {
+type TestStepParams = {
   [key: string]: string
 }
 
-type WorkflowStepCookies = {
+type TestStepCookies = {
   [key: string]: string
 }
 
-type WorkflowStepForm = {
+type TestStepForm = {
   [key: string]: string
 }
 
-type WorkflowStepMultiPartForm = {
-  [key: string]: string | WorkflowStepFile
+type TestStepMultiPartForm = {
+  [key: string]: string | TestStepFile
 }
 
-type WorkflowStepFile = {
+type TestStepFile = {
   file: string
 }
 
-type WorkflowStepAuth = {
+type TestStepAuth = {
   user: string
   password: string
 }
 
-type WorkflowStepGraphQL = {
+type TestStepGraphQL = {
   query: string
   variables: object
 }
 
-type WorkflowStepCaptures = {
-  [key: string]: WorkflowStepCapture
+type TestStepCaptures = {
+  [key: string]: TestStepCapture
 }
 
-type WorkflowStepCapture = {
+type TestStepCapture = {
   xpath?: string
   jsonpath?: string
   header?: string
@@ -114,58 +138,58 @@ type WorkflowStepCapture = {
   regex?: string
 }
 
-type WorkflowCapturesStorage = {
+type CapturesStorage = {
   [key: string]: any
 }
 
-type WorkflowStepCheck = {
-  status?: number | WorkflowMatcher[]
-  statusText?: string | WorkflowMatcher[]
+type TestStepCheck = {
+  status?: number | Matcher[]
+  statusText?: string | Matcher[]
   redirected?: boolean
   redirects?: string[]
-  headers?: WorkflowStepCheckValue | WorkflowStepCheckMatcher
-  body?: string | WorkflowMatcher[]
+  headers?: TestStepCheckValue | TestStepCheckMatcher
+  body?: string | Matcher[]
   json?: object
   jsonschema?: object
   jsonexample?: object
-  jsonpath?: WorkflowStepCheckJSONPath | WorkflowStepCheckMatcher
-  xpath?: WorkflowStepCheckValue | WorkflowStepCheckMatcher
-  selector?: WorkflowStepCheckValue | WorkflowStepCheckMatcher
-  cookies?: WorkflowStepCheckValue | WorkflowStepCheckMatcher
-  captures?: WorkflowStepCheckCaptures
+  jsonpath?: TestStepCheckJSONPath | TestStepCheckMatcher
+  xpath?: TestStepCheckValue | TestStepCheckMatcher
+  selector?: TestStepCheckValue | TestStepCheckMatcher
+  cookies?: TestStepCheckValue | TestStepCheckMatcher
+  captures?: TestStepCheckCaptures
   sha256?: string
   md5?: string
-  performance?: WorkflowStepCheckPerformance | WorkflowStepCheckMatcher
-  ssl?: WorkflowStepCheckSSL | WorkflowStepCheckMatcher
+  performance?: TestStepCheckPerformance | TestStepCheckMatcher
+  ssl?: TestStepCheckSSL | TestStepCheckMatcher
 }
 
-type WorkflowStepCheckValue = {
+type TestStepCheckValue = {
   [key: string]: string
 }
 
-type WorkflowStepCheckJSONPath = {
+type TestStepCheckJSONPath = {
   [key: string]: object
 }
 
-type WorkflowStepCheckPerformance = {
+type TestStepCheckPerformance = {
   [key: string]: number
 }
 
-type WorkflowStepCheckCaptures = {
+type TestStepCheckCaptures = {
   [key: string]: any
 }
 
-type WorkflowStepCheckSSL = {
+type TestStepCheckSSL = {
   valid?: boolean
   signed?: boolean
-  daysUntilExpiration?: number | WorkflowMatcher[]
+  daysUntilExpiration?: number | Matcher[]
 }
 
-type WorkflowStepCheckMatcher = {
-  [key: string]: WorkflowMatcher[]
+type TestStepCheckMatcher = {
+  [key: string]: Matcher[]
 }
 
-type WorkflowMatcher = {
+type Matcher = {
   eq?: any
   ne?: any
   gt?: number
@@ -184,90 +208,92 @@ type WorkflowMatcher = {
   isArray?: boolean
 }
 
-type WorkflowResult = {
-  workflow: Workflow
-  result: WorkflowStepResult[]
+type TestResult = {
+  id: string
+  name?: string
+  steps: TestStepResult[]
   passed: boolean
-  timestamp: number
+  timestamp: Date
   duration: number
 }
 
-type WorkflowStepResult = {
+type TestStepResult = {
   id?: string
+  testId: string
   name?: string
-  checks?: WorkflowResultCheck
+  checks?: TestResultCheck
   errored: boolean
   errorMessage?: string
   passed: boolean
   skipped: boolean
-  timestamp: number
+  timestamp: Date
   duration: number
-  request?: WorkflowResultRequest
-  response?: WorkflowResultResponse
+  request?: TestResultRequest
+  response?: TestResultResponse
 }
 
-type WorkflowResultRequest = {
+type TestResultRequest = {
   url: string
-  method?: string
+  method: string
 }
 
-type WorkflowResultResponse = {
+type TestResultResponse = {
   status: number
   statusText?: string
   duration?: number
   timings: any
-  ssl?: WorkflowResultResponseSSL
+  ssl?: TestResultResponseSSL
 }
 
-type WorkflowResultResponseSSL = {
+type TestResultResponseSSL = {
   valid: boolean
   signed: boolean
   validUntil: Date
   daysUntilExpiration: number
 }
 
-type WorkflowResultCheck = {
-  headers?: WorkflowResultCheckResults
-  redirected?: WorkflowResultCheckResult
-  redirects?: WorkflowResultCheckResult
-  json?: WorkflowResultCheckResult
-  jsonschema?: WorkflowResultCheckResult
-  jsonexample?: WorkflowResultCheckResult
-  jsonpath?: WorkflowResultCheckResults
-  xpath?: WorkflowResultCheckResults
-  selector?: WorkflowResultCheckResults
-  cookies?: WorkflowResultCheckResults
-  captures?: WorkflowResultCheckResults
-  status?: WorkflowResultCheckResult
-  statusText?: WorkflowResultCheckResult
-  body?: WorkflowResultCheckResult
-  sha256?: WorkflowResultCheckResult
-  md5?: WorkflowResultCheckResult
-  performance?: WorkflowResultCheckResults
-  ssl?: WorkflowResultCheckSSL
+type TestResultCheck = {
+  headers?: TestResultCheckResults
+  redirected?: TestResultCheckResult
+  redirects?: TestResultCheckResult
+  json?: TestResultCheckResult
+  jsonschema?: TestResultCheckResult
+  jsonexample?: TestResultCheckResult
+  jsonpath?: TestResultCheckResults
+  xpath?: TestResultCheckResults
+  selector?: TestResultCheckResults
+  cookies?: TestResultCheckResults
+  captures?: TestResultCheckResults
+  status?: TestResultCheckResult
+  statusText?: TestResultCheckResult
+  body?: TestResultCheckResult
+  sha256?: TestResultCheckResult
+  md5?: TestResultCheckResult
+  performance?: TestResultCheckResults
+  ssl?: TestResultCheckSSL
 }
 
-type WorkflowResultCheckResult = {
+type TestResultCheckResult = {
   expected: any
   given: any
   passed: boolean
 }
 
-type WorkflowResultCheckResults = {
-  [key: string]: WorkflowResultCheckResult
+type TestResultCheckResults = {
+  [key: string]: TestResultCheckResult
 }
 
-type WorkflowResultCheckSSL = {
-  valid?: WorkflowResultCheckResult
-  signed?: WorkflowResultCheckResult
-  daysUntilExpiration?: WorkflowResultCheckResult
+type TestResultCheckSSL = {
+  valid?: TestResultCheckResult
+  signed?: TestResultCheckResult
+  daysUntilExpiration?: TestResultCheckResult
 }
 
 // Matchers
-function check (given: any, expected: WorkflowMatcher[] | any) : boolean {
+function check (given: any, expected: Matcher[] | any) : boolean {
   if (typeof expected === 'object') {
-    return expected.map((test: WorkflowMatcher) => {
-      if (test.eq) return given === test.eq
+    return expected.map((test: Matcher) => {
+      if (test.eq) return deepEqual(given, test.eq)
       if (test.ne) return given !== test.ne
       if (test.gt) return given > test.gt
       if (test.gte) return given >= test.gte
@@ -293,11 +319,11 @@ function check (given: any, expected: WorkflowMatcher[] | any) : boolean {
     return regex.test(given)
   }
 
-  return given === expected
+  return deepEqual(given, expected)
 }
 
 // Check if expression
-function checkCondition (expression: string, data: WorkflowConditions): boolean {
+function checkCondition (expression: string, data: TestConditions): boolean {
   const filter = compileExpression(expression)
   return filter(flatten(data))
 }
@@ -307,36 +333,67 @@ function getCookie (store: CookieJar, name: string, url: string): string {
   return store.getCookiesSync(url).filter(cookie => cookie.key === name)[0]?.value
 }
 
+// Did all checks pass?
+function didChecksPass (stepResult: TestStepResult) {
+  if (!stepResult.checks) return true
+
+  return Object.values(stepResult.checks as object).map(check => {
+    return check['passed'] ? check.passed : Object.values(check).map((c: any) => c.passed).every(passed => passed)
+  })
+  .every(passed => passed)
+}
+
 // Run from YAML string
 export function runFromYAML (yamlString: string, options?: WorkflowOptions): Promise<WorkflowResult> {
   return run(yaml.parse(yamlString), options)
 }
 
-// Run from workflow file
-export function runFromFile (path: string, options?: WorkflowOptions): Promise<WorkflowResult> {
-  const workflowFile = fs.readFileSync(path).toString()
-  const config = yaml.parse(workflowFile)
+// Run from test file
+export async function runFromFile (path: string, options?: WorkflowOptions): Promise<WorkflowResult> {
+  const testFile = (await fs.promises.readFile(path)).toString()
+  const config = yaml.parse(testFile)
   return run({ ...config, path }, options)
 }
 
+// Run workflow
 export async function run (workflow: Workflow, options?: WorkflowOptions): Promise<WorkflowResult> {
-  const workflowResult: WorkflowResult = {
+  const timestamp = new Date()
+  const tests = await Promise.all(Object.values(workflow.tests).map((test, i) => runTest(Object.keys(workflow.tests)[i], test, options, workflow.config, workflow.env)))
+
+  const workflowResult = {
     workflow,
-    result: [],
+    result: {
+      tests,
+      passed: tests.every(test => test.passed),
+      timestamp,
+      duration: Date.now() - timestamp.valueOf()
+    }
+  }
+
+  options?.ee?.emit('workflow:result', workflowResult)
+  return workflowResult
+}
+
+async function runTest (id: string, test: Test, options?: WorkflowOptions, config?: WorkflowConfig, env?: object): Promise<TestResult> {
+  const testResult: TestResult = {
+    id,
+    name: test.name,
+    steps: [],
     passed: true,
-    timestamp: Date.now(),
+    timestamp: new Date(),
     duration: 0
   }
 
-  const captures: WorkflowCapturesStorage = {}
+  const captures: CapturesStorage = {}
   const cookies = new CookieJar()
-  let previous: WorkflowStepResult | undefined
+  let previous: TestStepResult | undefined
 
-  for (let step of workflow.steps) {
-    const stepResult: WorkflowStepResult = {
+  for (let step of test.steps) {
+    const stepResult: TestStepResult = {
       id: step.id,
+      testId: id,
       name: step.name,
-      timestamp: Date.now(),
+      timestamp: new Date(),
       passed: true,
       errored: false,
       skipped: false,
@@ -344,16 +401,16 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
     }
 
     // Skip current step is the previous one failed or condition was unmet
-    if (!workflow.config?.continueOnFail && (previous && !previous.passed)) {
+    if ((!test.config?.continueOnFail || !config?.continueOnFail) && (previous && !previous.passed)) {
       stepResult.passed = false
       stepResult.errorMessage = 'Step was skipped because previous one failed'
       stepResult.skipped = true
-    } else if (step.if && !checkCondition(step.if, { captures, env: workflow.env })) {
+    } else if (step.if && !checkCondition(step.if, { captures, env: { ...env, ...test.env } })) {
       stepResult.skipped = true
     } else {
       try {
-        // Parse template
-        step = JSON.parse(mustache.render(JSON.stringify(step), { captures, env: workflow.env, secrets: options?.secrets }))
+        // This line of code smeels like shit
+        step = JSON.parse(mustache.render(JSON.stringify(step), { captures, env: { ...env, ...test.env }, secrets: options?.secrets }))
         let requestBody: string | FormData | Buffer | undefined
 
         // Body
@@ -362,8 +419,8 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
             requestBody = step.body
           }
 
-          if ((step.body as WorkflowStepFile).file) {
-            requestBody = fs.readFileSync((step.body as WorkflowStepFile).file)
+          if ((step.body as TestStepFile).file) {
+            requestBody = fs.readFileSync((step.body as TestStepFile).file)
           }
         }
 
@@ -395,8 +452,8 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
               formData.append(field, step.formData[field])
             }
 
-            if ((step.formData[field] as WorkflowStepFile).file) {
-              formData.append(field, fs.readFileSync((step.formData[field] as WorkflowStepFile).file))
+            if ((step.formData[field] as TestStepFile).file) {
+              formData.append(field, fs.readFileSync((step.formData[field] as TestStepFile).file))
             }
           }
 
@@ -427,16 +484,15 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
           followRedirect: step.followRedirects !== undefined ? step.followRedirects : true,
           timeout: step.timeout,
           cookieJar: cookies,
-          http2: workflow.config?.http2 !== undefined ? workflow.config?.http2 : false,
           https: {
-            rejectUnauthorized: workflow.config?.rejectUnauthorized !== undefined ? workflow.config?.rejectUnauthorized : false,
+            rejectUnauthorized: config?.rejectUnauthorized !== undefined ? config?.rejectUnauthorized : false,
             checkServerIdentity(hostname, certificate) {
               sslCertificate = certificate
             }
           }
         })
-        .on('request', request => options?.ee?.emit('request', request))
-        .on('response', response => options?.ee?.emit('response', response))
+        .on('request', request => options?.ee?.emit('step:request', request))
+        .on('response', response => options?.ee?.emit('step:response', response))
 
         const responseData = res.rawBody
         const body = await new TextDecoder().decode(responseData)
@@ -510,11 +566,6 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
                 given: res.headers[header.toLowerCase()],
                 passed: check(res.headers[header.toLowerCase()], step.check.headers[header])
               }
-
-              if (!stepResult.checks.headers[header].passed){
-                workflowResult.passed = false
-                stepResult.passed = false
-              }
             }
           }
 
@@ -524,11 +575,6 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
               expected: step.check.body,
               given: body.trim(),
               passed: check(body.trim(), step.check.body)
-            }
-
-            if (!stepResult.checks.body.passed) {
-              workflowResult.passed = false
-              stepResult.passed = false
             }
           }
 
@@ -541,11 +587,6 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
               given: json,
               passed: deepEqual(json, step.check.json)
             }
-
-            if (!stepResult.checks.json.passed) {
-              workflowResult.passed = false
-              stepResult.passed = false
-            }
           }
 
           // Check JSONSchema
@@ -556,11 +597,6 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
               expected: step.check.jsonschema,
               given: json,
               passed: JSONSchema.validate(json, step.check.jsonschema).valid
-            }
-
-            if (!stepResult.checks.jsonschema.passed) {
-              workflowResult.passed = false
-              stepResult.passed = false
             }
           }
 
@@ -573,11 +609,6 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
               expected: schema,
               given: json,
               passed: JSONSchema.validate(step.check.jsonexample, schema).valid
-            }
-
-            if (!stepResult.checks.jsonexample.passed) {
-              workflowResult.passed = false
-              stepResult.passed = false
             }
           }
 
@@ -593,11 +624,6 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
                 expected: step.check.jsonpath[path],
                 given: result[0],
                 passed: check(result[0], step.check.jsonpath[path])
-              }
-
-              if (!stepResult.checks.jsonpath[path].passed) {
-                workflowResult.passed = false
-                stepResult.passed = false
               }
             }
           }
@@ -615,11 +641,6 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
                 given: result.length > 0 ? (result[0] as any).firstChild.data : undefined,
                 passed: check(result.length > 0 ? (result[0] as any).firstChild.data : undefined, step.check.xpath[path])
               }
-
-              if (!stepResult.checks.xpath[path].passed) {
-                workflowResult.passed = false
-                stepResult.passed = false
-              }
             }
           }
 
@@ -636,11 +657,6 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
                 given: result,
                 passed: check(result, step.check.selector[selector])
               }
-
-              if (!stepResult.checks.selector[selector].passed) {
-                workflowResult.passed = false
-                stepResult.passed = false
-              }
             }
           }
 
@@ -656,11 +672,6 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
                 given: value,
                 passed: check(value, step.check.cookies[cookie])
               }
-
-              if (!stepResult.checks.cookies[cookie].passed) {
-                workflowResult.passed = false
-                stepResult.passed = false
-              }
             }
           }
 
@@ -674,11 +685,6 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
                 given: captures[capture],
                 passed: check(captures[capture], step.check.captures[capture])
               }
-
-              if (!stepResult.checks.captures[capture].passed) {
-                workflowResult.passed = false
-                stepResult.passed = false
-              }
             }
           }
 
@@ -689,11 +695,6 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
               given: res.statusCode,
               passed: check(res.statusCode, step.check.status)
             }
-
-            if (!stepResult.checks.status.passed) {
-              workflowResult.passed = false
-              stepResult.passed = false
-            }
           }
 
           // Check statusText
@@ -702,11 +703,6 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
               expected: step.check.statusText,
               given: res.statusMessage,
               passed: check(res.statusMessage, step.check.statusText)
-            }
-
-            if (!stepResult.checks.statusText.passed) {
-              workflowResult.passed = false
-              stepResult.passed = false
             }
           }
 
@@ -717,11 +713,6 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
               given: res.redirectUrls.length > 0,
               passed: res.redirectUrls.length > 0 === step.check.redirected
             }
-
-            if (!stepResult.checks.redirected.passed) {
-              workflowResult.passed = false
-              stepResult.passed = false
-            }
           }
 
           // Check redirects
@@ -730,11 +721,6 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
               expected: step.check.redirects,
               given: res.redirectUrls,
               passed: deepEqual(res.redirectUrls, step.check.redirects)
-            }
-
-            if (!stepResult.checks.redirects.passed) {
-              workflowResult.passed = false
-              stepResult.passed = false
             }
           }
 
@@ -746,11 +732,6 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
               given: hash,
               passed: step.check.sha256 === hash
             }
-
-            if (!stepResult.checks.sha256.passed) {
-              workflowResult.passed = false
-              stepResult.passed = false
-            }
           }
 
           // Check md5
@@ -760,11 +741,6 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
               expected: step.check.md5,
               given: hash,
               passed: step.check.md5 === hash
-            }
-
-            if (!stepResult.checks.md5.passed) {
-              workflowResult.passed = false
-              stepResult.passed = false
             }
           }
 
@@ -778,11 +754,6 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
                 given: (res.timings.phases as any)[metric],
                 passed: check((res.timings.phases as any)[metric], step.check.performance[metric])
               }
-
-              if (!stepResult.checks.performance[metric].passed){
-                workflowResult.passed = false
-                stepResult.passed = false
-              }
             }
           }
 
@@ -795,11 +766,6 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
                 given: stepResult.response.ssl?.valid,
                 passed: stepResult.response.ssl?.valid === step.check.ssl.valid
               }
-
-              if (!stepResult.checks.ssl.valid.passed) {
-                workflowResult.passed = false
-                stepResult.passed = false
-              }
             }
 
             if ('signed' in step.check.ssl) {
@@ -807,11 +773,6 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
                 expected: step.check.ssl.signed,
                 given: stepResult.response.ssl?.signed,
                 passed: stepResult.response.ssl?.signed === step.check.ssl.signed
-              }
-
-              if (!stepResult.checks.ssl.signed.passed) {
-                workflowResult.passed = false
-                stepResult.passed = false
               }
             }
 
@@ -821,30 +782,29 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
                 given: stepResult.response.ssl?.daysUntilExpiration,
                 passed: check(stepResult.response.ssl?.daysUntilExpiration, step.check.ssl.daysUntilExpiration)
               }
-
-              if (!stepResult.checks.ssl.daysUntilExpiration.passed) {
-                workflowResult.passed = false
-                stepResult.passed = false
-              }
             }
           }
         }
+
+        stepResult.passed = didChecksPass(stepResult)
       } catch (error) {
-        workflowResult.passed = false
+        stepResult.passed = false
         stepResult.errored = true
         stepResult.errorMessage = (error as Error).message
-        stepResult.passed = false
-        options?.ee?.emit('error', error)
+        options?.ee?.emit('step:error', error)
       }
     }
 
-    stepResult.duration = Date.now() - stepResult.timestamp
+    stepResult.duration = Date.now() - stepResult.timestamp.valueOf()
+    testResult.steps.push(stepResult)
     previous = stepResult
-    options?.ee?.emit('result', stepResult)
-    workflowResult.result.push(stepResult)
+
+    options?.ee?.emit('step:result', stepResult)
   }
 
-  workflowResult.duration = Date.now() - workflowResult.timestamp
-  options?.ee?.emit('done', workflowResult)
-  return workflowResult
+  testResult.duration = testResult.steps.map(step => step.duration).reduce((a, b) => a + b)
+  testResult.passed = testResult.steps.every(step => step.passed)
+
+  options?.ee?.emit('test:result', testResult)
+  return testResult
 }
