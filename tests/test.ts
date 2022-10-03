@@ -17,6 +17,7 @@ const workflow = {
         {
           "name": "Captures",
           "id": "captures",
+          "method": "GET",
           "url": "https://jsonplaceholder.typicode.com/posts/1",
           "capture": {
             "id": {

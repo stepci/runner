@@ -219,7 +219,7 @@ type TestResult = {
 
 type TestStepResult = {
   id?: string
-  workflowId: string
+  testId: string
   name?: string
   checks?: TestResultCheck
   errored: boolean
@@ -359,9 +359,8 @@ export async function runFromFile (path: string, options?: WorkflowOptions): Pro
 export async function run (workflow: Workflow, options?: WorkflowOptions): Promise<WorkflowResult> {
   const timestamp = new Date()
   const tests = await Promise.all(Object.values(workflow.tests).map((test, i) => runTest(Object.keys(workflow.tests)[i], test, options, workflow.config, workflow.env)))
-  options?.ee?.emit('workflow:result', tests)
 
-  return {
+  const workflowResult = {
     workflow,
     result: {
       tests,
@@ -370,6 +369,9 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
       duration: Date.now() - timestamp.valueOf()
     }
   }
+
+  options?.ee?.emit('workflow:result', workflowResult)
+  return workflowResult
 }
 
 async function runTest (id: string, test: Test, options?: WorkflowOptions, config?: WorkflowConfig, env?: object): Promise<TestResult> {
@@ -389,7 +391,7 @@ async function runTest (id: string, test: Test, options?: WorkflowOptions, confi
   for (let step of test.steps) {
     const stepResult: TestStepResult = {
       id: step.id,
-      workflowId: id,
+      testId: id,
       name: step.name,
       timestamp: new Date(),
       passed: true,
