@@ -40,9 +40,9 @@ const workflow = {
         "url": "https://jsonplaceholder.typicode.com/posts/1",
         "method": "GET",
         "check": {
-           "jsonschema": {
-              "$ref": "#/components/schemas/Post"
-           }
+          "jsonschema": {
+             "$ref": "#/components/schemas/Post"
+          }
         }
      }]
     },

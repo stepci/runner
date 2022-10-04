@@ -16,6 +16,7 @@ import deepEqual from 'deep-equal'
 import Ajv from 'ajv'
 import toJsonSchema from 'to-json-schema'
 import { DetailedPeerCertificate } from 'node:tls'
+import { XMLBuilder } from 'fast-xml-parser'
 
 type Workflow = {
   version: string
@@ -86,6 +87,7 @@ type TestStep = {
   formData?: TestStepMultiPartForm
   auth?: TestStepAuth
   json?: object
+  xml?: object
   graphql?: TestStepGraphQL
   captures?: TestStepCaptures
   followRedirects?: boolean
@@ -445,6 +447,11 @@ async function runTest (id: string, test: Test, options?: WorkflowOptions, confi
           requestBody = JSON.stringify(step.json)
         }
 
+        //  XML
+        if (step.xml) {
+          requestBody = JSON.stringify(new XMLBuilder({}).build(step.xml))
+        }
+
         // GraphQL
         if (step.graphql) {
           requestBody = JSON.stringify(step.graphql)
@@ -627,8 +634,7 @@ async function runTest (id: string, test: Test, options?: WorkflowOptions, confi
               }
             })
 
-            const ajv = new Ajv()
-            const validate = ajv.compile(schema)
+            const validate = schemaValidator.compile(schema)
 
             stepResult.checks.jsonexample = {
               expected: schema,
