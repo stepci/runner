@@ -11,6 +11,28 @@ const workflow = {
   config: {
     rejectUnauthorized: false
   },
+  components: {
+    schemas: {
+      "Post": {
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "integer",
+          },
+          "id": {
+            "type": "integer",
+          },
+          "title":{
+            "type": "string",
+          },
+          "body": {
+            "type": "string",
+          }
+        },
+        "required": ['userId', 'id', 'title', 'body']
+      }
+    }
+  },
   tests: {
     "example": {
       "steps": [{
@@ -18,12 +40,8 @@ const workflow = {
         "url": "https://jsonplaceholder.typicode.com/posts/1",
         "method": "GET",
         "check": {
-           "jsonexample": {
-             "userId": 0,
-             "id": 0,
-             "title": "string",
-             "body": "string",
-             "wow": "string"
+           "jsonschema": {
+              "$ref": "#/components/schemas/Post"
            }
         }
      }]

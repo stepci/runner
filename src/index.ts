@@ -23,7 +23,14 @@ type Workflow = {
   path?: string
   env?: object
   tests: Tests
+  components?: WorkflowComponents
   config?: WorkflowConfig
+}
+
+type WorkflowComponents = {
+  schemas: {
+    [key: string]: any
+  }
 }
 
 type WorkflowConfig = {
@@ -358,7 +365,7 @@ export async function runFromFile (path: string, options?: WorkflowOptions): Pro
 // Run workflow
 export async function run (workflow: Workflow, options?: WorkflowOptions): Promise<WorkflowResult> {
   const timestamp = new Date()
-  const tests = await Promise.all(Object.values(workflow.tests).map((test, i) => runTest(Object.keys(workflow.tests)[i], test, options, workflow.config, workflow.env)))
+  const tests = await Promise.all(Object.values(workflow.tests).map((test, i) => runTest(Object.keys(workflow.tests)[i], test, options, workflow.config, workflow.env, workflow.components)))
 
   const workflowResult = {
     workflow,
@@ -374,7 +381,7 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
   return workflowResult
 }
 
-async function runTest (id: string, test: Test, options?: WorkflowOptions, config?: WorkflowConfig, env?: object): Promise<TestResult> {
+async function runTest (id: string, test: Test, options?: WorkflowOptions, config?: WorkflowConfig, env?: object, components?: WorkflowComponents): Promise<TestResult> {
   const testResult: TestResult = {
     id,
     name: test.name,
@@ -386,7 +393,16 @@ async function runTest (id: string, test: Test, options?: WorkflowOptions, confi
 
   const captures: CapturesStorage = {}
   const cookies = new CookieJar()
+  const schemaValidator = new Ajv()
   let previous: TestStepResult | undefined
+
+  if (components) {
+    if (components.schemas) {
+      for (const schema in components.schemas) {
+        schemaValidator.addSchema(components.schemas[schema], `#/components/schemas/${schema}`)
+      }
+    }
+  }
 
   for (let step of test.steps) {
     const stepResult: TestStepResult = {
@@ -592,8 +608,7 @@ async function runTest (id: string, test: Test, options?: WorkflowOptions, confi
           // Check JSONSchema
           if (step.check.jsonschema) {
             const json = JSON.parse(body)
-            const ajv = new Ajv()
-            const validate = ajv.compile(step.check.jsonschema)
+            const validate = schemaValidator.compile(step.check.jsonschema)
 
             stepResult.checks.jsonschema = {
               expected: step.check.jsonschema,
