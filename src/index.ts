@@ -13,7 +13,7 @@ import crypto from 'crypto'
 import fs from 'fs'
 import yaml from 'yaml'
 import deepEqual from 'deep-equal'
-import JSONSchema from 'jsonschema'
+import Ajv from 'ajv'
 import toJsonSchema from 'to-json-schema'
 import { DetailedPeerCertificate } from 'node:tls'
 
@@ -592,23 +592,33 @@ async function runTest (id: string, test: Test, options?: WorkflowOptions, confi
           // Check JSONSchema
           if (step.check.jsonschema) {
             const json = JSON.parse(body)
+            const ajv = new Ajv()
+            const validate = ajv.compile(step.check.jsonschema)
 
             stepResult.checks.jsonschema = {
               expected: step.check.jsonschema,
               given: json,
-              passed: JSONSchema.validate(json, step.check.jsonschema).valid
+              passed: validate(json)
             }
           }
 
           // Check JSON Example
           if (step.check.jsonexample) {
             const json = JSON.parse(body)
-            const schema = toJsonSchema(json, { required: true })
+            const schema = toJsonSchema(step.check.jsonexample, {
+              objects: {
+                // Fix from: https://github.com/ruzicka/to-json-schema/issues/12#issue-683035835
+                postProcessFnc: (schema, obj, defaultFnc) => ({ ...defaultFnc(schema, obj), required: Object.getOwnPropertyNames(obj) })
+              }
+            })
+
+            const ajv = new Ajv()
+            const validate = ajv.compile(schema)
 
             stepResult.checks.jsonexample = {
               expected: schema,
               given: json,
-              passed: JSONSchema.validate(step.check.jsonexample, schema).valid
+              passed: validate(json)
             }
           }
 
