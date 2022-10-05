@@ -14,6 +14,7 @@ import fs from 'fs'
 import yaml from 'yaml'
 import deepEqual from 'deep-equal'
 import Ajv from 'ajv'
+import addFormats from 'ajv-formats'
 import toJsonSchema from 'to-json-schema'
 import { DetailedPeerCertificate } from 'node:tls'
 import { XMLBuilder } from 'fast-xml-parser'
@@ -35,6 +36,7 @@ type WorkflowComponents = {
 }
 
 type WorkflowConfig = {
+  baseUrl?: string
   rejectUnauthorized?: boolean
   continueOnFail?: boolean
 }
@@ -396,6 +398,7 @@ async function runTest (id: string, test: Test, options?: WorkflowOptions, confi
   const captures: CapturesStorage = {}
   const cookies = new CookieJar()
   const schemaValidator = new Ajv()
+  addFormats(schemaValidator)
   let previous: TestStepResult | undefined
 
   if (components) {
@@ -499,10 +502,11 @@ async function runTest (id: string, test: Test, options?: WorkflowOptions, confi
         // Make a request
         let sslCertificate: DetailedPeerCertificate | undefined
         const res = await got(step.url, {
+          prefixUrl: config?.baseUrl,
           method: step.method as Method,
           headers: { ...step.headers },
           body: requestBody,
-          searchParams: step.params,
+          searchParams: new URLSearchParams(step.params),
           throwHttpErrors: false,
           followRedirect: step.followRedirects !== undefined ? step.followRedirects : true,
           timeout: step.timeout,
