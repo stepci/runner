@@ -37,10 +37,13 @@ const workflow = {
     "example": {
       "steps": [{
         "name": "GET request",
-        "url": "https://jsonplaceholder.typicode.com/posts/1",
+        "url": "https://petstore.swagger.io/v2/pet/findByStatus",
+        "headers": {
+          "accept": "application/json"
+        },
         "method": "GET",
         "check": {
-          "jsonschema": {
+          "schema": {
              "$ref": "#/components/schemas/Post"
           }
         }

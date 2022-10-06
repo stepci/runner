@@ -15,10 +15,8 @@ import yaml from 'yaml'
 import deepEqual from 'deep-equal'
 import Ajv from 'ajv'
 import addFormats from 'ajv-formats'
-import toJsonSchema from 'to-json-schema'
 import { DetailedPeerCertificate } from 'node:tls'
-import { XMLBuilder } from 'fast-xml-parser'
-import { OpenAPIV3_1 } from 'openapi-types'
+import { XMLBuilder, XMLParser } from 'fast-xml-parser'
 
 type Workflow = {
   version: string
@@ -26,12 +24,18 @@ type Workflow = {
   path?: string
   env?: object
   tests: Tests
-  components?: OpenAPIV3_1.ComponentsObject
+  components?: WorkflowComponents
   config?: WorkflowConfig
 }
 
+type WorkflowComponents = {
+  schemas: {
+    [key: string]: any
+  }
+}
+
 type WorkflowConfig = {
-  baseUrl?: string
+  baseURL?: string
   rejectUnauthorized?: boolean
   continueOnFail?: boolean
 }
@@ -156,8 +160,8 @@ type StepCheck = {
   headers?: StepCheckValue | StepCheckMatcher
   body?: string | Matcher[]
   json?: object
-  jsonschema?: object
-  jsonexample?: object
+  xml?: object
+  schema?: object
   jsonpath?: StepCheckJSONPath | StepCheckMatcher
   xpath?: StepCheckValue | StepCheckMatcher
   selector?: StepCheckValue | StepCheckMatcher
@@ -263,8 +267,8 @@ type StepCheckResult = {
   redirected?: CheckResult
   redirects?: CheckResult
   json?: CheckResult
-  jsonschema?: CheckResult
-  jsonexample?: CheckResult
+  xml?: CheckResult
+  schema?: CheckResult
   jsonpath?: CheckResults
   xpath?: CheckResults
   selector?: CheckResults
@@ -430,6 +434,15 @@ async function runTest (id: string, test: Test, options?: WorkflowOptions, confi
         step = JSON.parse(mustache.render(JSON.stringify(step), { captures, env: { ...env, ...test.env }, secrets: options?.secrets }))
         let requestBody: string | FormData | Buffer | undefined
 
+        // Prefix URL
+        if (config?.baseURL) {
+          try {
+            new URL(step.url)
+          } catch {
+            step.url = config.baseURL + step.url
+          }
+        }
+
         // Body
         if (step.body) {
           if (typeof step.body === 'string') {
@@ -498,11 +511,10 @@ async function runTest (id: string, test: Test, options?: WorkflowOptions, confi
         // Make a request
         let sslCertificate: DetailedPeerCertificate | undefined
         const res = await got(step.url, {
-          prefixUrl: config?.baseUrl,
           method: step.method as Method,
           headers: { ...step.headers },
           body: requestBody,
-          searchParams: new URLSearchParams(step.params),
+          searchParams: step.params ? new URLSearchParams(step.params) : undefined,
           throwHttpErrors: false,
           followRedirect: step.followRedirects !== undefined ? step.followRedirects : true,
           timeout: step.timeout,
@@ -604,7 +616,6 @@ async function runTest (id: string, test: Test, options?: WorkflowOptions, confi
           // Check JSON
           if (step.check.json) {
             const json = JSON.parse(body)
-
             stepResult.checks.json = {
               expected: step.check.json,
               given: json,
@@ -612,34 +623,34 @@ async function runTest (id: string, test: Test, options?: WorkflowOptions, confi
             }
           }
 
-          // Check JSONSchema
-          if (step.check.jsonschema) {
-            const json = JSON.parse(body)
-            const validate = schemaValidator.compile(step.check.jsonschema)
-
-            stepResult.checks.jsonschema = {
-              expected: step.check.jsonschema,
-              given: json,
-              passed: validate(json)
+          // Check XML
+          if (step.check.xml) {
+            const xml = new XMLParser({ ignorePiTags: true }).parse(body)
+            stepResult.checks.xml = {
+              expected: step.check.xml,
+              given: xml,
+              passed: deepEqual(xml, step.check.xml)
             }
           }
 
-          // Check JSON Example
-          if (step.check.jsonexample) {
-            const json = JSON.parse(body)
-            const schema = toJsonSchema(step.check.jsonexample, {
-              objects: {
-                // Fix from: https://github.com/ruzicka/to-json-schema/issues/12#issue-683035835
-                postProcessFnc: (schema, obj, defaultFnc) => ({ ...defaultFnc(schema, obj), required: Object.getOwnPropertyNames(obj) })
-              }
-            })
+          // Check Schema
+          if (step.check.schema) {
+            let sample = body
 
-            const validate = schemaValidator.compile(schema)
+            if (res.headers['content-type']?.includes('json')) {
+              sample = JSON.parse(body)
+            }
 
-            stepResult.checks.jsonexample = {
-              expected: schema,
-              given: json,
-              passed: validate(json)
+            // This is a stub
+            if (res.headers['content-type']?.includes('xml')) {
+              sample = new XMLParser({ ignorePiTags: true }).parse(body)
+            }
+
+            const validate = schemaValidator.compile(step.check.schema)
+            stepResult.checks.schema = {
+              expected: step.check.schema,
+              given: sample,
+              passed: validate(sample)
             }
           }
 
