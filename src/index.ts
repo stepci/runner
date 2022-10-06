@@ -18,7 +18,7 @@ import addFormats from 'ajv-formats'
 import { DetailedPeerCertificate } from 'node:tls'
 import { XMLBuilder, XMLParser } from 'fast-xml-parser'
 
-type Workflow = {
+export type Workflow = {
   version: string
   name: string
   path?: string
@@ -28,13 +28,13 @@ type Workflow = {
   config?: WorkflowConfig
 }
 
-type WorkflowComponents = {
+export type WorkflowComponents = {
   schemas: {
     [key: string]: any
   }
 }
 
-type WorkflowConfig = {
+export type WorkflowConfig = {
   baseURL?: string
   rejectUnauthorized?: boolean
   continueOnFail?: boolean
@@ -49,7 +49,7 @@ type WorkflowOptionsSecrets = {
   [key: string]: string
 }
 
-type WorkflowResult = {
+export type WorkflowResult = {
   workflow: Workflow
   result: {
     tests: TestResult[]
@@ -59,18 +59,18 @@ type WorkflowResult = {
   }
 }
 
-type Test = {
+export type Test = {
   name?: string
   env?: object
   steps: Step[]
   config?: TestConfig
 }
 
-type Tests = {
+export type Tests = {
   [key: string]: Test
 }
 
-type TestConfig = {
+export type TestConfig = {
   continueOnFail?: boolean
 }
 
@@ -79,7 +79,7 @@ type TestConditions = {
   env?: object
 }
 
-type Step = {
+export type Step = {
   id?: string
   name?: string
   if?: string
@@ -101,45 +101,45 @@ type Step = {
   timeout?: number
 }
 
-type StepHeaders = {
+export type StepHeaders = {
   [key: string]: string
 }
 
-type StepParams = {
+export type StepParams = {
   [key: string]: string
 }
 
-type StepCookies = {
+export type StepCookies = {
   [key: string]: string
 }
 
-type StepForm = {
+export type StepForm = {
   [key: string]: string
 }
 
-type StepMultiPartForm = {
+export type StepMultiPartForm = {
   [key: string]: string | StepFile
 }
 
-type StepFile = {
+export type StepFile = {
   file: string
 }
 
-type StepAuth = {
+export type StepAuth = {
   user: string
   password: string
 }
 
-type StepGraphQL = {
+export type StepGraphQL = {
   query: string
   variables: object
 }
 
-type StepCaptures = {
+export type StepCaptures = {
   [key: string]: StepCapture
 }
 
-type StepCapture = {
+export type StepCapture = {
   xpath?: string
   jsonpath?: string
   header?: string
@@ -152,7 +152,7 @@ type CapturesStorage = {
   [key: string]: any
 }
 
-type StepCheck = {
+export type StepCheck = {
   status?: number | Matcher[]
   statusText?: string | Matcher[]
   redirected?: boolean
@@ -173,33 +173,33 @@ type StepCheck = {
   ssl?: StepCheckSSL | StepCheckMatcher
 }
 
-type StepCheckValue = {
+export type StepCheckValue = {
   [key: string]: string
 }
 
-type StepCheckJSONPath = {
+export type StepCheckJSONPath = {
   [key: string]: object
 }
 
-type StepCheckPerformance = {
+export type StepCheckPerformance = {
   [key: string]: number
 }
 
-type StepCheckCaptures = {
+export type StepCheckCaptures = {
   [key: string]: any
 }
 
-type StepCheckSSL = {
+export type StepCheckSSL = {
   valid?: boolean
   signed?: boolean
   daysUntilExpiration?: number | Matcher[]
 }
 
-type StepCheckMatcher = {
+export type StepCheckMatcher = {
   [key: string]: Matcher[]
 }
 
-type Matcher = {
+export type Matcher = {
   eq?: any
   ne?: any
   gt?: number
@@ -218,7 +218,7 @@ type Matcher = {
   isArray?: boolean
 }
 
-type TestResult = {
+export type TestResult = {
   id: string
   name?: string
   steps: StepResult[]
@@ -227,7 +227,7 @@ type TestResult = {
   duration: number
 }
 
-type StepResult = {
+export type StepResult = {
   id?: string
   testId: string
   name?: string
@@ -242,12 +242,12 @@ type StepResult = {
   response?: StepResponse
 }
 
-type StepRequest = {
+export type StepRequest = {
   url: string
   method: string
 }
 
-type StepResponse = {
+export type StepResponse = {
   status: number
   statusText?: string
   duration?: number
@@ -255,14 +255,14 @@ type StepResponse = {
   ssl?: StepResponseSSL
 }
 
-type StepResponseSSL = {
+export type StepResponseSSL = {
   valid: boolean
   signed: boolean
   validUntil: Date
   daysUntilExpiration: number
 }
 
-type StepCheckResult = {
+export type StepCheckResult = {
   headers?: CheckResults
   redirected?: CheckResult
   redirects?: CheckResult
@@ -283,17 +283,17 @@ type StepCheckResult = {
   ssl?: CheckResultSSL
 }
 
-type CheckResult = {
+export type CheckResult = {
   expected: any
   given: any
   passed: boolean
 }
 
-type CheckResults = {
+export type CheckResults = {
   [key: string]: CheckResult
 }
 
-type CheckResultSSL = {
+export type CheckResultSSL = {
   valid?: CheckResult
   signed?: CheckResult
   daysUntilExpiration?: CheckResult
