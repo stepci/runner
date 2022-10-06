@@ -18,6 +18,7 @@ import addFormats from 'ajv-formats'
 import toJsonSchema from 'to-json-schema'
 import { DetailedPeerCertificate } from 'node:tls'
 import { XMLBuilder } from 'fast-xml-parser'
+import { OpenAPIV3_1 } from 'openapi-types'
 
 type Workflow = {
   version: string
@@ -25,14 +26,8 @@ type Workflow = {
   path?: string
   env?: object
   tests: Tests
-  components?: WorkflowComponents
+  components?: OpenAPIV3_1.ComponentsObject
   config?: WorkflowConfig
-}
-
-type WorkflowComponents = {
-  schemas: {
-    [key: string]: any
-  }
 }
 
 type WorkflowConfig = {
@@ -63,7 +58,7 @@ type WorkflowResult = {
 type Test = {
   name?: string
   env?: object
-  steps: TestStep[]
+  steps: Step[]
   config?: TestConfig
 }
 
@@ -75,72 +70,72 @@ type TestConfig = {
   continueOnFail?: boolean
 }
 
-type TestStep = {
-  id?: string
-  name?: string
-  if?: string
-  url: string
-  method: string
-  headers?: TestStepHeaders
-  params?: TestStepParams
-  cookies?: TestStepCookies
-  body?: string | TestStepFile
-  form?: TestStepForm
-  formData?: TestStepMultiPartForm
-  auth?: TestStepAuth
-  json?: object
-  xml?: object
-  graphql?: TestStepGraphQL
-  captures?: TestStepCaptures
-  followRedirects?: boolean
-  check?: TestStepCheck
-  timeout?: number
-}
-
 type TestConditions = {
   captures?: CapturesStorage
   env?: object
 }
 
-type TestStepHeaders = {
+type Step = {
+  id?: string
+  name?: string
+  if?: string
+  url: string
+  method: string
+  headers?: StepHeaders
+  params?: StepParams
+  cookies?: StepCookies
+  body?: string | StepFile
+  form?: StepForm
+  formData?: StepMultiPartForm
+  auth?: StepAuth
+  json?: object
+  xml?: object
+  graphql?: StepGraphQL
+  captures?: StepCaptures
+  followRedirects?: boolean
+  check?: StepCheck
+  timeout?: number
+}
+
+type StepHeaders = {
   [key: string]: string
 }
 
-type TestStepParams = {
+type StepParams = {
   [key: string]: string
 }
 
-type TestStepCookies = {
+type StepCookies = {
   [key: string]: string
 }
 
-type TestStepForm = {
+type StepForm = {
   [key: string]: string
 }
 
-type TestStepMultiPartForm = {
-  [key: string]: string | TestStepFile
+type StepMultiPartForm = {
+  [key: string]: string | StepFile
 }
 
-type TestStepFile = {
+type StepFile = {
   file: string
 }
 
-type TestStepAuth = {
+type StepAuth = {
   user: string
   password: string
 }
 
-type TestStepGraphQL = {
+type StepGraphQL = {
   query: string
   variables: object
 }
 
-type TestStepCaptures = {
-  [key: string]: TestStepCapture
+type StepCaptures = {
+  [key: string]: StepCapture
 }
 
-type TestStepCapture = {
+type StepCapture = {
   xpath?: string
   jsonpath?: string
   header?: string
@@ -153,50 +148,50 @@ type CapturesStorage = {
   [key: string]: any
 }
 
-type TestStepCheck = {
+type StepCheck = {
   status?: number | Matcher[]
   statusText?: string | Matcher[]
   redirected?: boolean
   redirects?: string[]
-  headers?: TestStepCheckValue | TestStepCheckMatcher
+  headers?: StepCheckValue | StepCheckMatcher
   body?: string | Matcher[]
   json?: object
   jsonschema?: object
   jsonexample?: object
-  jsonpath?: TestStepCheckJSONPath | TestStepCheckMatcher
-  xpath?: TestStepCheckValue | TestStepCheckMatcher
-  selector?: TestStepCheckValue | TestStepCheckMatcher
-  cookies?: TestStepCheckValue | TestStepCheckMatcher
-  captures?: TestStepCheckCaptures
+  jsonpath?: StepCheckJSONPath | StepCheckMatcher
+  xpath?: StepCheckValue | StepCheckMatcher
+  selector?: StepCheckValue | StepCheckMatcher
+  cookies?: StepCheckValue | StepCheckMatcher
+  captures?: StepCheckCaptures
   sha256?: string
   md5?: string
-  performance?: TestStepCheckPerformance | TestStepCheckMatcher
-  ssl?: TestStepCheckSSL | TestStepCheckMatcher
+  performance?: StepCheckPerformance | StepCheckMatcher
+  ssl?: StepCheckSSL | StepCheckMatcher
 }
 
-type TestStepCheckValue = {
+type StepCheckValue = {
   [key: string]: string
 }
 
-type TestStepCheckJSONPath = {
+type StepCheckJSONPath = {
   [key: string]: object
 }
 
-type TestStepCheckPerformance = {
+type StepCheckPerformance = {
   [key: string]: number
 }
 
-type TestStepCheckCaptures = {
+type StepCheckCaptures = {
   [key: string]: any
 }
 
-type TestStepCheckSSL = {
+type StepCheckSSL = {
   valid?: boolean
   signed?: boolean
   daysUntilExpiration?: number | Matcher[]
 }
 
-type TestStepCheckMatcher = {
+type StepCheckMatcher = {
   [key: string]: Matcher[]
 }
 
@@ -222,82 +217,82 @@ type Matcher = {
 type TestResult = {
   id: string
   name?: string
-  steps: TestStepResult[]
+  steps: StepResult[]
   passed: boolean
   timestamp: Date
   duration: number
 }
 
-type TestStepResult = {
+type StepResult = {
   id?: string
   testId: string
   name?: string
-  checks?: TestResultCheck
+  checks?: StepCheckResult
   errored: boolean
   errorMessage?: string
   passed: boolean
   skipped: boolean
   timestamp: Date
   duration: number
-  request?: TestResultRequest
-  response?: TestResultResponse
+  request?: StepRequest
+  response?: StepResponse
 }
 
-type TestResultRequest = {
+type StepRequest = {
   url: string
   method: string
 }
 
-type TestResultResponse = {
+type StepResponse = {
   status: number
   statusText?: string
   duration?: number
   timings: any
-  ssl?: TestResultResponseSSL
+  ssl?: StepResponseSSL
 }
 
-type TestResultResponseSSL = {
+type StepResponseSSL = {
   valid: boolean
   signed: boolean
   validUntil: Date
   daysUntilExpiration: number
 }
 
-type TestResultCheck = {
-  headers?: TestResultCheckResults
-  redirected?: TestResultCheckResult
-  redirects?: TestResultCheckResult
-  json?: TestResultCheckResult
-  jsonschema?: TestResultCheckResult
-  jsonexample?: TestResultCheckResult
-  jsonpath?: TestResultCheckResults
-  xpath?: TestResultCheckResults
-  selector?: TestResultCheckResults
-  cookies?: TestResultCheckResults
-  captures?: TestResultCheckResults
-  status?: TestResultCheckResult
-  statusText?: TestResultCheckResult
-  body?: TestResultCheckResult
-  sha256?: TestResultCheckResult
-  md5?: TestResultCheckResult
-  performance?: TestResultCheckResults
-  ssl?: TestResultCheckSSL
+type StepCheckResult = {
+  headers?: CheckResults
+  redirected?: CheckResult
+  redirects?: CheckResult
+  json?: CheckResult
+  jsonschema?: CheckResult
+  jsonexample?: CheckResult
+  jsonpath?: CheckResults
+  xpath?: CheckResults
+  selector?: CheckResults
+  cookies?: CheckResults
+  captures?: CheckResults
+  status?: CheckResult
+  statusText?: CheckResult
+  body?: CheckResult
+  sha256?: CheckResult
+  md5?: CheckResult
+  performance?: CheckResults
+  ssl?: CheckResultSSL
 }
 
-type TestResultCheckResult = {
+type CheckResult = {
   expected: any
   given: any
   passed: boolean
 }
 
-type TestResultCheckResults = {
-  [key: string]: TestResultCheckResult
+type CheckResults = {
+  [key: string]: CheckResult
 }
 
-type TestResultCheckSSL = {
-  valid?: TestResultCheckResult
-  signed?: TestResultCheckResult
-  daysUntilExpiration?: TestResultCheckResult
+type CheckResultSSL = {
+  valid?: CheckResult
+  signed?: CheckResult
+  daysUntilExpiration?: CheckResult
 }
 
 // Matchers
@@ -345,7 +340,7 @@ function getCookie (store: CookieJar, name: string, url: string): string {
 }
 
 // Did all checks pass?
-function didChecksPass (stepResult: TestStepResult) {
+function didChecksPass (stepResult: StepResult) {
   if (!stepResult.checks) return true
 
   return Object.values(stepResult.checks as object).map(check => {
@@ -385,7 +380,7 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
   return workflowResult
 }
 
-async function runTest (id: string, test: Test, options?: WorkflowOptions, config?: WorkflowConfig, env?: object, components?: WorkflowComponents): Promise<TestResult> {
+async function runTest (id: string, test: Test, options?: WorkflowOptions, config?: WorkflowConfig, env?: object, components?: Workflow['components']): Promise<TestResult> {
   const testResult: TestResult = {
     id,
     name: test.name,
@@ -397,10 +392,11 @@ async function runTest (id: string, test: Test, options?: WorkflowOptions, confi
 
   const captures: CapturesStorage = {}
   const cookies = new CookieJar()
-  const schemaValidator = new Ajv()
+  const schemaValidator = new Ajv({ strictSchema: false })
   addFormats(schemaValidator)
-  let previous: TestStepResult | undefined
+  let previous: StepResult | undefined
 
+  // Add schemas to schema Validator
   if (components) {
     if (components.schemas) {
       for (const schema in components.schemas) {
@@ -410,7 +406,7 @@ async function runTest (id: string, test: Test, options?: WorkflowOptions, confi
   }
 
   for (let step of test.steps) {
-    const stepResult: TestStepResult = {
+    const stepResult: StepResult = {
       id: step.id,
       testId: id,
       name: step.name,
@@ -440,8 +436,8 @@ async function runTest (id: string, test: Test, options?: WorkflowOptions, confi
             requestBody = step.body
           }
 
-          if ((step.body as TestStepFile).file) {
-            requestBody = fs.readFileSync((step.body as TestStepFile).file)
+          if ((step.body as StepFile).file) {
+            requestBody = fs.readFileSync((step.body as StepFile).file)
           }
         }
 
@@ -478,8 +474,8 @@ async function runTest (id: string, test: Test, options?: WorkflowOptions, confi
               formData.append(field, step.formData[field])
             }
 
-            if ((step.formData[field] as TestStepFile).file) {
-              formData.append(field, fs.readFileSync((step.formData[field] as TestStepFile).file))
+            if ((step.formData[field] as StepFile).file) {
+              formData.append(field, fs.readFileSync((step.formData[field] as StepFile).file))
             }
           }
 
