@@ -21,7 +21,6 @@ import { XMLBuilder, XMLParser } from 'fast-xml-parser'
 export type Workflow = {
   version: string
   name: string
-  path?: string
   env?: object
   tests: Tests
   components?: WorkflowComponents
@@ -41,6 +40,7 @@ export type WorkflowConfig = {
 }
 
 type WorkflowOptions = {
+  path?: string
   secrets?: WorkflowOptionsSecrets
   ee?: EventEmitter
 }
@@ -57,6 +57,7 @@ export type WorkflowResult = {
     timestamp: Date
     duration: number
   }
+  path?: string
 }
 
 export type Test = {
@@ -96,8 +97,12 @@ export type Step = {
   xml?: object
   graphql?: StepGraphQL
   captures?: StepCaptures
-  followRedirects?: boolean
+  config?: StepConfig
   check?: StepCheck
+}
+
+export type StepConfig = {
+  followRedirects?: boolean
   timeout?: number
 }
 
@@ -126,8 +131,14 @@ export type StepFile = {
 }
 
 export type StepAuth = {
-  user: string
-  password: string
+  basic?: {
+    user: string
+    password: string
+  }
+
+  bearer?: {
+    token: string
+  }
 }
 
 export type StepGraphQL = {
@@ -376,7 +387,8 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
       tests,
       passed: tests.every(test => test.passed),
       timestamp,
-      duration: Date.now() - timestamp.valueOf()
+      duration: Date.now() - timestamp.valueOf(),
+      path: options?.path
     }
   }
 
@@ -498,7 +510,14 @@ async function runTest (id: string, test: Test, options?: WorkflowOptions, confi
         // Basic Auth
         if (step.auth) {
           if (!step.headers) step.headers = {}
-          step.headers['Authorization'] = 'Basic ' + Buffer.from(step.auth.user + ':' + step.auth.password).toString('base64')
+
+          if (step.auth.basic) {
+            step.headers['Authorization'] = 'Basic ' + Buffer.from(step.auth.basic.user + ':' + step.auth.basic.password).toString('base64')
+          }
+
+          if (step.auth.bearer) {
+            step.headers['Authorization'] = 'Bearer ' + step.auth.bearer.token
+          }
         }
 
         // Set Cookies
@@ -516,8 +535,8 @@ async function runTest (id: string, test: Test, options?: WorkflowOptions, confi
           body: requestBody,
           searchParams: step.params ? new URLSearchParams(step.params) : undefined,
           throwHttpErrors: false,
-          followRedirect: step.followRedirects !== undefined ? step.followRedirects : true,
-          timeout: step.timeout,
+          followRedirect: step.config?.followRedirects !== undefined ? step.config?.followRedirects : true,
+          timeout: step.config?.timeout,
           cookieJar: cookies,
           https: {
             rejectUnauthorized: config?.rejectUnauthorized !== undefined ? config?.rejectUnauthorized : false,
