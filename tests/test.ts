@@ -37,7 +37,7 @@ const workflow = {
     "example": {
       "steps": [{
         "name": "GET request",
-        "url": "https://petstore.swagger.io/v2/pet/findByStatus",
+        "url": "https://jsonplaceholder.typicode.com/posts/1",
         "headers": {
           "accept": "application/json"
         },
@@ -149,4 +149,4 @@ const workflow = {
 }
 
 const ee = new EventEmitter()
-run(workflow).then(({ result }) => console.log(result.tests[0].steps))
+run(workflow).then(({ result }) => console.log(result.tests[0].steps[0]))
