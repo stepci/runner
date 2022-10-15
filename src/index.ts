@@ -324,15 +324,15 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
   const timestamp = new Date()
   const tests = await Promise.all(Object.values(workflow.tests).map((test, i) => runTest(Object.keys(workflow.tests)[i], test, options, workflow.config, workflow.env, workflow.components)))
 
-  const workflowResult = {
+  const workflowResult: WorkflowResult = {
     workflow,
     result: {
       tests,
       passed: tests.every(test => test.passed),
       timestamp,
-      duration: Date.now() - timestamp.valueOf(),
-      path: options?.path
-    }
+      duration: Date.now() - timestamp.valueOf()
+    },
+    path: options?.path
   }
 
   options?.ee?.emit('workflow:result', workflowResult)
