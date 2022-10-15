@@ -238,6 +238,7 @@ export type StepResponse = {
   status: number
   statusText?: string
   duration?: number
+  contentType?: string
   timings: any
   ssl?: StepResponseSSL
 }
@@ -501,6 +502,7 @@ async function runTest (id: string, test: Test, options?: WorkflowOptions, confi
           status: res.statusCode,
           statusText: res.statusMessage,
           duration: res.timings.phases.total,
+          contentType: res.headers['content-type']?.split(';')[0],
           timings: res.timings
         }
 
