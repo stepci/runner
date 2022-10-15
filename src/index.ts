@@ -316,7 +316,7 @@ export function runFromYAML (yamlString: string, options?: WorkflowOptions): Pro
 export async function runFromFile (path: string, options?: WorkflowOptions): Promise<WorkflowResult> {
   const testFile = (await fs.promises.readFile(path)).toString()
   const config = yaml.parse(testFile)
-  return run({ ...config, path }, options)
+  return run(config, { ...options, path })
 }
 
 // Run workflow
