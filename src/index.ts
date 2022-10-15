@@ -485,6 +485,7 @@ async function runTest (id: string, test: Test, options?: WorkflowOptions, confi
         .on('response', response => {
           if ((response.socket as TLSSocket).getPeerCertificate) {
             sslCertificate = (response.socket as TLSSocket).getPeerCertificate()
+            if (Object.keys(sslCertificate).length === 0) sslCertificate = undefined
           }
         })
 
@@ -746,6 +747,7 @@ async function runTest (id: string, test: Test, options?: WorkflowOptions, confi
           // Check SSL certs
           if (step.check.ssl && sslCertificate) {
             stepResult.checks.ssl = {}
+
             if ('valid' in step.check.ssl) {
               stepResult.checks.ssl.valid = {
                 expected: step.check.ssl.valid,

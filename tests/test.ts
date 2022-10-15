@@ -8,9 +8,6 @@ const workflow = {
   env: {
     host: "example.com"
   },
-  config: {
-    rejectUnauthorized: false
-  },
   components: {
     schemas: {
       "Post": {
@@ -47,7 +44,7 @@ const workflow = {
              "$ref": "#/components/schemas/Post"
           }
         }
-     }]
+   }]
     },
     // default: {
     //   "steps": [
@@ -149,4 +146,4 @@ const workflow = {
 }
 
 const ee = new EventEmitter()
-run(workflow).then(({ result }) => console.log(result.tests[0].steps[0]))
+run(workflow).then(({ result }) => console.log(result.tests[0].steps))
