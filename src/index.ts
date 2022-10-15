@@ -16,7 +16,6 @@ import deepEqual from 'deep-equal'
 import Ajv from 'ajv'
 import addFormats from 'ajv-formats'
 import { PeerCertificate, TLSSocket } from 'node:tls'
-import { XMLBuilder, XMLParser } from 'fast-xml-parser'
 import { Matcher, check } from './matcher'
 
 export type Workflow = {
@@ -95,14 +94,9 @@ export type Step = {
   formData?: StepMultiPartForm
   auth?: StepAuth
   json?: object
-  xml?: object
   graphql?: StepGraphQL
   captures?: StepCaptures
-  config?: StepConfig
   check?: StepCheck
-}
-
-export type StepConfig = {
   followRedirects?: boolean
   timeout?: number
 }
@@ -172,7 +166,6 @@ export type StepCheck = {
   headers?: StepCheckValue | StepCheckMatcher
   body?: string | Matcher[]
   json?: object
-  xml?: object
   schema?: object
   jsonpath?: StepCheckJSONPath | StepCheckMatcher
   xpath?: StepCheckValue | StepCheckMatcher
@@ -183,6 +176,7 @@ export type StepCheck = {
   md5?: string
   performance?: StepCheckPerformance | StepCheckMatcher
   ssl?: StepCheckSSL | StepCheckMatcher
+  size?: number
 }
 
 export type StepCheckValue = {
@@ -260,7 +254,6 @@ export type StepCheckResult = {
   redirected?: CheckResult
   redirects?: CheckResult
   json?: CheckResult
-  xml?: CheckResult
   schema?: CheckResult
   jsonpath?: CheckResults
   xpath?: CheckResults
@@ -274,6 +267,7 @@ export type StepCheckResult = {
   md5?: CheckResult
   performance?: CheckResults
   ssl?: CheckResultSSL
+  size?: CheckResult
 }
 
 export type CheckResult = {
@@ -420,11 +414,6 @@ async function runTest (id: string, test: Test, options?: WorkflowOptions, confi
           requestBody = JSON.stringify(step.json)
         }
 
-        //  XML
-        if (step.xml) {
-          requestBody = JSON.stringify(new XMLBuilder({}).build(step.xml))
-        }
-
         // GraphQL
         if (step.graphql) {
           requestBody = JSON.stringify(step.graphql)
@@ -484,8 +473,8 @@ async function runTest (id: string, test: Test, options?: WorkflowOptions, confi
           body: requestBody,
           searchParams: step.params ? new URLSearchParams(step.params) : undefined,
           throwHttpErrors: false,
-          followRedirect: step.config?.followRedirects !== undefined ? step.config?.followRedirects : true,
-          timeout: step.config?.timeout,
+          followRedirect: step.followRedirects !== undefined ? step.followRedirects : true,
+          timeout: step.timeout,
           cookieJar: cookies,
           https: {
             rejectUnauthorized: config?.rejectUnauthorized !== undefined ? config?.rejectUnauthorized : false
@@ -593,27 +582,12 @@ async function runTest (id: string, test: Test, options?: WorkflowOptions, confi
             }
           }
 
-          // Check XML
-          if (step.check.xml) {
-            const xml = new XMLParser({ ignorePiTags: true }).parse(body)
-            stepResult.checks.xml = {
-              expected: step.check.xml,
-              given: xml,
-              passed: deepEqual(xml, step.check.xml)
-            }
-          }
-
           // Check Schema
           if (step.check.schema) {
             let sample = body
 
             if (res.headers['content-type']?.includes('json')) {
               sample = JSON.parse(body)
-            }
-
-            // This is a stub
-            if (res.headers['content-type']?.includes('xml')) {
-              sample = new XMLParser({ ignorePiTags: true }).parse(body)
             }
 
             const validate = schemaValidator.compile(step.check.schema)
@@ -794,6 +768,15 @@ async function runTest (id: string, test: Test, options?: WorkflowOptions, confi
                 given: stepResult.response.ssl?.daysUntilExpiration,
                 passed: check(stepResult.response.ssl?.daysUntilExpiration, step.check.ssl.daysUntilExpiration)
               }
+            }
+          }
+
+          // Check byte size
+          if (step.check.size){
+            stepResult.checks.size = {
+              expected: step.check.size,
+              given: responseData.byteLength,
+              passed: check(responseData.byteLength, step.check.size)
             }
           }
         }
