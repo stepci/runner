@@ -1,10 +1,10 @@
 {
   "name": "@stepci/runner",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "description": "Step CI Runner",
   "main": "dist/index.js",
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "rm -r dist && tsc -p tsconfig.json",
     "build:watch": "tsc -w -p tsconfig.json",
     "test": "ts-node ./tests/test.ts"
   },

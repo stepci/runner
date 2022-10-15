@@ -127,7 +127,7 @@ export type StepFile = {
 
 export type StepAuth = {
   basic?: {
-    user: string
+    username: string
     password: string
   }
 
@@ -450,7 +450,7 @@ async function runTest (id: string, test: Test, options?: WorkflowOptions, confi
           if (!step.headers) step.headers = {}
 
           if (step.auth.basic) {
-            step.headers['Authorization'] = 'Basic ' + Buffer.from(step.auth.basic.user + ':' + step.auth.basic.password).toString('base64')
+            step.headers['Authorization'] = 'Basic ' + Buffer.from(step.auth.basic.username + ':' + step.auth.basic.password).toString('base64')
           }
 
           if (step.auth.bearer) {
