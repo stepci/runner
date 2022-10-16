@@ -1,6 +1,5 @@
 import got, { Method } from 'got'
 import { CookieJar } from 'tough-cookie'
-import mustache from 'mustache'
 import xpath from 'xpath'
 import FormData from 'form-data'
 import * as cheerio from 'cheerio'
@@ -8,7 +7,6 @@ import { JSONPath } from 'jsonpath-plus'
 import { DOMParser } from 'xmldom'
 import { compileExpression } from 'filtrex'
 import flatten from 'flat'
-import { EventEmitter } from 'node:events'
 import crypto from 'crypto'
 import fs from 'fs'
 import yaml from 'yaml'
@@ -72,6 +70,26 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
   return workflowResult
 }
 
+// search a Step for handlebars variables to be parsed
+export function parseTemplate(step: Step, input: any) {
+  function replace(text: string, variables: any): string {
+    const flat: [string, string][] = Object.entries(flatten(variables) as any)
+    for (const [key, value] of flat) {
+      text = text.replaceAll(`{{${key}}}`, value)
+    }
+    return text
+  }
+  const { id, followRedirects, timeout, captures, ...props} = step
+  const constructed: any = { id, followRedirects, timeout, captures }
+  for (const [key, value] of Object.entries(props)) {
+    const ehString = check(value, [{ isString: true }])
+    const text =  ehString ? value as string : JSON.stringify(value)
+    const rendered = replace(text, input)
+    constructed[key] = ehString ? rendered : JSON.parse(rendered)
+  }
+  return constructed
+}
+
 async function runTest (id: string, test: Test, options?: WorkflowOptions, config?: WorkflowConfig, env?: object, components?: Workflow['components']): Promise<TestResult> {
   const testResult: TestResult = {
     id,
@@ -118,8 +136,8 @@ async function runTest (id: string, test: Test, options?: WorkflowOptions, confi
       stepResult.skipped = true
     } else {
       try {
-        // This line of code smeels like shit
-        step = JSON.parse(mustache.render(JSON.stringify(step), { captures, env: { ...env, ...test.env }, secrets: options?.secrets }))
+        const inputTemplate = { captures, env: { ...env, ...test.env }, secrets: options?.secrets }
+        step = parseTemplate(step, inputTemplate)
         let requestBody: string | FormData | Buffer | undefined
 
         // Prefix URL
