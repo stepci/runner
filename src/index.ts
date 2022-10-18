@@ -1,6 +1,6 @@
 import got, { Method } from 'got'
 import { CookieJar } from 'tough-cookie'
-import mustache from 'mustache'
+import { renderTemplate } from 'liquidjs-lite'
 import xpath from 'xpath'
 import FormData from 'form-data'
 import * as cheerio from 'cheerio'
@@ -386,8 +386,7 @@ async function runTest (id: string, test: Test, options?: WorkflowOptions, confi
       stepResult.skipped = true
     } else {
       try {
-        // This line of code smeels like shit
-        step = JSON.parse(mustache.render(JSON.stringify(step), { captures, env: { ...env, ...test.env }, secrets: options?.secrets }))
+        step = renderTemplate(step, { captures, env: { ...env, ...test.env }, secrets: options?.secrets }) as Step
         let requestBody: string | FormData | Buffer | undefined
 
         // Prefix URL
