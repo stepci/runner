@@ -433,6 +433,7 @@ async function runTest (id: string, test: Test, options?: WorkflowOptions, confi
 
         // GraphQL
         if (step.graphql) {
+          step.method = 'POST'
           requestBody = JSON.stringify(step.graphql)
         }
 
