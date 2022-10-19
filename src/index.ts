@@ -18,10 +18,14 @@ import addFormats from 'ajv-formats'
 import { PeerCertificate, TLSSocket } from 'node:tls'
 import { Matcher, check } from './matcher'
 
+export type EnvironmentVariables = {
+  [key: string]: string;
+}
+
 export type Workflow = {
   version: string
   name: string
-  env?: object
+  env?: EnvironmentVariables
   tests: Tests
   components?: WorkflowComponents
   config?: WorkflowConfig
@@ -43,6 +47,7 @@ type WorkflowOptions = {
   path?: string
   secrets?: WorkflowOptionsSecrets
   ee?: EventEmitter
+  env?: EnvironmentVariables
 }
 
 type WorkflowOptionsSecrets = {
@@ -323,7 +328,8 @@ export async function runFromFile (path: string, options?: WorkflowOptions): Pro
 // Run workflow
 export async function run (workflow: Workflow, options?: WorkflowOptions): Promise<WorkflowResult> {
   const timestamp = new Date()
-  const tests = await Promise.all(Object.values(workflow.tests).map((test, i) => runTest(Object.keys(workflow.tests)[i], test, options, workflow.config, workflow.env, workflow.components)))
+  const env = { ...workflow.env ?? {}, ...options?.env ?? {} }
+  const tests = await Promise.all(Object.values(workflow.tests).map((test, i) => runTest(Object.keys(workflow.tests)[i], test, options, workflow.config, env, workflow.components)))
 
   const workflowResult: WorkflowResult = {
     workflow,
