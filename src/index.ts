@@ -1,6 +1,7 @@
 import got, { Method } from 'got'
 import { CookieJar } from 'tough-cookie'
 import { renderTemplate } from 'liquidless'
+import { faker } from 'liquidless-faker'
 import xpath from 'xpath'
 import FormData from 'form-data'
 import * as cheerio from 'cheerio'
@@ -392,7 +393,17 @@ async function runTest (id: string, test: Test, options?: WorkflowOptions, confi
       stepResult.skipped = true
     } else {
       try {
-        step = renderTemplate(step, { captures, env: { ...env, ...test.env }, secrets: options?.secrets }) as Step
+        step = renderTemplate(step, {
+          captures,
+          env: { ...env, ...test.env },
+          secrets: options?.secrets
+        },
+        {
+          filters: {
+            faker
+          }
+        }) as Step
+
         let requestBody: string | FormData | Buffer | undefined
 
         // Prefix URL
