@@ -1,4 +1,5 @@
 import got, { Method } from 'got'
+import { gRPCResponse, makeRequest } from 'cool-grpc'
 import { CookieJar } from 'tough-cookie'
 import { renderTemplate } from 'liquidless'
 import { fake } from 'liquidless-faker'
@@ -90,48 +91,68 @@ export type Step = {
   id?: string
   name?: string
   if?: string
+  http?: HTTPStep
+  grpc?: gRPCStep
+}
+
+export type HTTPStep = {
   url: string
   method: string
-  headers?: StepHeaders
-  params?: StepParams
-  cookies?: StepCookies
-  body?: string | StepFile
-  form?: StepForm
-  formData?: StepMultiPartForm
-  auth?: StepAuth
+  headers?: HTTPStepHeaders
+  params?: HTTPStepParams
+  cookies?: HTTPStepCookies
+  body?: string | HTTPStepFile
+  form?: HTTPStepForm
+  formData?: HTTPStepMultiPartForm
+  auth?: HTTPStepAuth
   json?: object
-  graphql?: StepGraphQL
+  graphql?: HTTPStepGraphQL
   captures?: StepCaptures
-  check?: StepCheck
+  check?: HTTPStepCheck
   followRedirects?: boolean
   timeout?: number
 }
 
-export type StepHeaders = {
+export type gRPCStep = {
+  proto: string
+  host: string
+  service: string
+  method: string
+  data: object
+  tls?: {
+    rootCerts: string
+    privateKey: string
+    certChain: string
+  }
+  captures?: StepCaptures
+  check?: gRPCStepCheck
+}
+
+export type HTTPStepHeaders = {
   [key: string]: string
 }
 
-export type StepParams = {
+export type HTTPStepParams = {
   [key: string]: string
 }
 
-export type StepCookies = {
+export type HTTPStepCookies = {
   [key: string]: string
 }
 
-export type StepForm = {
+export type HTTPStepForm = {
   [key: string]: string
 }
 
-export type StepMultiPartForm = {
-  [key: string]: string | StepFile
+export type HTTPStepMultiPartForm = {
+  [key: string]: string | HTTPStepFile
 }
 
-export type StepFile = {
+export type HTTPStepFile = {
   file: string
 }
 
-export type StepAuth = {
+export type HTTPStepAuth = {
   basic?: {
     username: string
     password: string
@@ -142,7 +163,7 @@ export type StepAuth = {
   }
 }
 
-export type StepGraphQL = {
+export type HTTPStepGraphQL = {
   query: string
   variables: object
 }
@@ -164,7 +185,7 @@ type CapturesStorage = {
   [key: string]: any
 }
 
-export type StepCheck = {
+export type HTTPStepCheck = {
   status?: number | Matcher[]
   statusText?: string | Matcher[]
   redirected?: boolean
@@ -172,7 +193,7 @@ export type StepCheck = {
   headers?: StepCheckValue | StepCheckMatcher
   body?: string | Matcher[]
   json?: object
-  schema?: object
+  jsonschema?: object
   jsonpath?: StepCheckJSONPath | StepCheckMatcher
   xpath?: StepCheckValue | StepCheckMatcher
   selector?: StepCheckValue | StepCheckMatcher
@@ -185,12 +206,21 @@ export type StepCheck = {
   size?: number
 }
 
+export type gRPCStepCheck = {
+  json?: object
+  jsonschema?: object
+  jsonpath?: StepCheckJSONPath | StepCheckMatcher
+  captures?: StepCheckCaptures
+  performance?: StepCheckPerformance | StepCheckMatcher
+  size?: number
+}
+
 export type StepCheckValue = {
   [key: string]: string
 }
 
 export type StepCheckJSONPath = {
-  [key: string]: object
+  [key: string]: any
 }
 
 export type StepCheckPerformance = {
@@ -221,6 +251,7 @@ export type TestResult = {
 }
 
 export type StepResult = {
+  type?: 'http' | 'grpc'
   id?: string
   testId: string
   name?: string
@@ -231,16 +262,29 @@ export type StepResult = {
   skipped: boolean
   timestamp: Date
   duration: number
-  request?: StepRequest
-  response?: StepResponse
+  request?: HTTPStepRequest | gRPCRequest
+  response?: HTTPStepResponse | gRPCResponse
 }
 
-export type StepRequest = {
+export type HTTPStepRequest = {
   url: string
   method: string
 }
 
-export type StepResponse = {
+export type gRPCRequest = {
+  proto: string
+  host: string
+  service: string
+  method: string
+  data: object
+  tls?: {
+    rootCerts: string
+    privateKey: string
+    certChain: string
+  }
+}
+
+export type HTTPStepResponse = {
   status: number
   statusText?: string
   duration?: number
@@ -261,7 +305,7 @@ export type StepCheckResult = {
   redirected?: CheckResult
   redirects?: CheckResult
   json?: CheckResult
-  schema?: CheckResult
+  jsonschema?: CheckResult
   jsonpath?: CheckResults
   xpath?: CheckResults
   selector?: CheckResults
@@ -363,11 +407,11 @@ async function runTest (id: string, test: Test, options?: WorkflowOptions, confi
   addFormats(schemaValidator)
   let previous: StepResult | undefined
 
-  // Add schemas to schema Validator
+  // Add schemas to jsonschema Validator
   if (components) {
     if (components.schemas) {
-      for (const schema in components.schemas) {
-        schemaValidator.addSchema(components.schemas[schema], `#/components/schemas/${schema}`)
+      for (const jsonschema in components.schemas) {
+        schemaValidator.addSchema(components.schemas[jsonschema], `#/components/schemas/${jsonschema}`)
       }
     }
   }
@@ -404,400 +448,513 @@ async function runTest (id: string, test: Test, options?: WorkflowOptions, confi
           }
         }) as Step
 
-        let requestBody: string | FormData | Buffer | undefined
+        if (step.http) {
+          stepResult.type = 'http'
+          let requestBody: string | FormData | Buffer | undefined
 
-        // Prefix URL
-        if (config?.baseURL) {
-          try {
-            new URL(step.url)
-          } catch {
-            step.url = config.baseURL + step.url
-          }
-        }
-
-        // Body
-        if (step.body) {
-          if (typeof step.body === 'string') {
-            requestBody = step.body
-          }
-
-          if ((step.body as StepFile).file) {
-            requestBody = fs.readFileSync((step.body as StepFile).file)
-          }
-        }
-
-        //  JSON
-        if (step.json) {
-          requestBody = JSON.stringify(step.json)
-        }
-
-        // GraphQL
-        if (step.graphql) {
-          step.method = 'POST'
-          requestBody = JSON.stringify(step.graphql)
-        }
-
-        // Form Data
-        if (step.form) {
-          const formData = new URLSearchParams()
-          for (const field in step.form) {
-            formData.append(field, step.form[field])
-          }
-
-          requestBody = formData.toString()
-        }
-
-        // Multipart Form Data
-        if (step.formData) {
-          const formData = new FormData()
-          for (const field in step.formData) {
-            if (typeof step.formData[field] === 'string') {
-              formData.append(field, step.formData[field])
-            }
-
-            if ((step.formData[field] as StepFile).file) {
-              formData.append(field, fs.readFileSync((step.formData[field] as StepFile).file))
+          // Prefix URL
+          if (config?.baseURL) {
+            try {
+              new URL(step.http.url)
+            } catch {
+              step.http.url = config.baseURL + step.http.url
             }
           }
 
-          requestBody = formData
-        }
+          // Body
+          if (step.http.body) {
+            if (typeof step.http.body === 'string') {
+              requestBody = step.http.body
+            }
 
-        // Basic Auth
-        if (step.auth) {
-          if (!step.headers) step.headers = {}
-
-          if (step.auth.basic) {
-            step.headers['Authorization'] = 'Basic ' + Buffer.from(step.auth.basic.username + ':' + step.auth.basic.password).toString('base64')
+            if ((step.http.body as HTTPStepFile).file) {
+              requestBody = fs.readFileSync((step.http.body as HTTPStepFile).file)
+            }
           }
 
-          if (step.auth.bearer) {
-            step.headers['Authorization'] = 'Bearer ' + step.auth.bearer.token
+          //  JSON
+          if (step.http.json) {
+            requestBody = JSON.stringify(step.http.json)
           }
-        }
 
-        // Set Cookies
-        if (step.cookies) {
-          for (const cookie in step.cookies) {
-            await cookies.setCookie(cookie + '=' + step.cookies[cookie], step.url)
+          // GraphQL
+          if (step.http.graphql) {
+            step.http.method = 'POST'
+            requestBody = JSON.stringify(step.http.graphql)
           }
-        }
 
-        // Make a request
-        let sslCertificate: PeerCertificate | undefined
-        const res = await got(step.url, {
-          method: step.method as Method,
-          headers: { ...step.headers },
-          body: requestBody,
-          searchParams: step.params ? new URLSearchParams(step.params) : undefined,
-          throwHttpErrors: false,
-          followRedirect: step.followRedirects !== undefined ? step.followRedirects : true,
-          timeout: step.timeout,
-          cookieJar: cookies,
-          https: {
-            rejectUnauthorized: config?.rejectUnauthorized !== undefined ? config?.rejectUnauthorized : false
+          // Form Data
+          if (step.http.form) {
+            const formData = new URLSearchParams()
+            for (const field in step.http.form) {
+              formData.append(field, step.http.form[field])
+            }
+
+            requestBody = formData.toString()
           }
-        })
-        .on('request', request => options?.ee?.emit('step:request', request))
-        .on('response', response => options?.ee?.emit('step:response', response))
-        .on('response', response => {
-          if ((response.socket as TLSSocket).getPeerCertificate) {
-            sslCertificate = (response.socket as TLSSocket).getPeerCertificate()
-            if (Object.keys(sslCertificate).length === 0) sslCertificate = undefined
+
+          // Multipart Form Data
+          if (step.http.formData) {
+            const formData = new FormData()
+            for (const field in step.http.formData) {
+              if (typeof step.http.formData[field] === 'string') {
+                formData.append(field, step.http.formData[field])
+              }
+
+              if ((step.http.formData[field] as HTTPStepFile).file) {
+                formData.append(field, fs.readFileSync((step.http.formData[field] as HTTPStepFile).file))
+              }
+            }
+
+            requestBody = formData
           }
-        })
 
-        const responseData = res.rawBody
-        const body = await new TextDecoder().decode(responseData)
+          // Basic Auth
+          if (step.http.auth) {
+            if (!step.http.headers) step.http.headers = {}
 
-        stepResult.request = {
-          url: res.url,
-          method: step.method
-        }
+            if (step.http.auth.basic) {
+              step.http.headers['Authorization'] = 'Basic ' + Buffer.from(step.http.auth.basic.username + ':' + step.http.auth.basic.password).toString('base64')
+            }
 
-        stepResult.response = {
-          status: res.statusCode,
-          statusText: res.statusMessage,
-          duration: res.timings.phases.total,
-          contentType: res.headers['content-type']?.split(';')[0],
-          timings: res.timings
-        }
-
-        if (sslCertificate) {
-          stepResult.response.ssl = {
-            valid: new Date(sslCertificate.valid_to) > new Date(),
-            signed: sslCertificate.issuer.CN !== sslCertificate.subject.CN,
-            validUntil: new Date(sslCertificate.valid_to),
-            daysUntilExpiration: Math.round(Math.abs(new Date().valueOf() - new Date(sslCertificate.valid_to).valueOf()) / (24 * 60 * 60 * 1000))
+            if (step.http.auth.bearer) {
+              step.http.headers['Authorization'] = 'Bearer ' + step.http.auth.bearer.token
+            }
           }
-        }
 
-        // Captures
-        if (step.captures) {
-          for (const name in step.captures) {
-            const capture = step.captures[name]
+          // Set Cookies
+          if (step.http.cookies) {
+            for (const cookie in step.http.cookies) {
+              await cookies.setCookie(cookie + '=' + step.http.cookies[cookie], step.http.url)
+            }
+          }
 
-            if (capture.jsonpath) {
+          // Make a request
+          let sslCertificate: PeerCertificate | undefined
+          const res = await got(step.http.url, {
+            method: step.http.method as Method,
+            headers: { ...step.http.headers },
+            body: requestBody,
+            searchParams: step.http.params ? new URLSearchParams(step.http.params) : undefined,
+            throwHttpErrors: false,
+            followRedirect: step.http.followRedirects !== undefined ? step.http.followRedirects : true,
+            timeout: step.http.timeout,
+            cookieJar: cookies,
+            https: {
+              rejectUnauthorized: config?.rejectUnauthorized !== undefined ? config?.rejectUnauthorized : false
+            }
+          })
+          .on('request', request => options?.ee?.emit('step:http_request', request))
+          .on('response', response => options?.ee?.emit('step:http_response', response))
+          .on('response', response => {
+            if ((response.socket as TLSSocket).getPeerCertificate) {
+              sslCertificate = (response.socket as TLSSocket).getPeerCertificate()
+              if (Object.keys(sslCertificate).length === 0) sslCertificate = undefined
+            }
+          })
+
+          const responseData = res.rawBody
+          const body = await new TextDecoder().decode(responseData)
+
+          stepResult.request = {
+            url: res.url,
+            method: step.http.method
+          }
+
+          stepResult.response = {
+            status: res.statusCode,
+            statusText: res.statusMessage,
+            duration: res.timings.phases.total,
+            contentType: res.headers['content-type']?.split(';')[0],
+            timings: res.timings
+          }
+
+          if (sslCertificate) {
+            stepResult.response.ssl = {
+              valid: new Date(sslCertificate.valid_to) > new Date(),
+              signed: sslCertificate.issuer.CN !== sslCertificate.subject.CN,
+              validUntil: new Date(sslCertificate.valid_to),
+              daysUntilExpiration: Math.round(Math.abs(new Date().valueOf() - new Date(sslCertificate.valid_to).valueOf()) / (24 * 60 * 60 * 1000))
+            }
+          }
+
+          // Captures
+          if (step.http.captures) {
+            for (const name in step.http.captures) {
+              const capture = step.http.captures[name]
+
+              if (capture.jsonpath) {
+                const json = JSON.parse(body)
+                captures[name] = JSONPath({ path: capture.jsonpath, json })[0]
+              }
+
+              if (capture.xpath) {
+                const dom = new DOMParser().parseFromString(body)
+                const result = xpath.select(capture.xpath, dom)
+                captures[name] = result.length > 0 ? (result[0] as any).firstChild.data : undefined
+              }
+
+              if (capture.header) {
+                captures[name] = res.headers[capture.header]
+              }
+
+              if (capture.selector) {
+                const dom = cheerio.load(body)
+                captures[name] = dom(capture.selector).html()
+              }
+
+              if (capture.cookie) {
+                captures[name] = getCookie(cookies, capture.cookie, res.url)
+              }
+
+              if (capture.regex) {
+                captures[name] = body.match(capture.regex)?.[1]
+              }
+            }
+          }
+
+          if (step.http.check) {
+            stepResult.checks = {}
+
+            // Check headers
+            if (step.http.check.headers){
+              stepResult.checks.headers = {}
+
+              for (const header in step.http.check.headers){
+                stepResult.checks.headers[header] = {
+                  expected: step.http.check.headers[header],
+                  given: res.headers[header.toLowerCase()],
+                  passed: check(res.headers[header.toLowerCase()], step.http.check.headers[header])
+                }
+              }
+            }
+
+            // Check body
+            if (step.http.check.body) {
+              stepResult.checks.body = {
+                expected: step.http.check.body,
+                given: body.trim(),
+                passed: check(body.trim(), step.http.check.body)
+              }
+            }
+
+            // Check JSON
+            if (step.http.check.json) {
               const json = JSON.parse(body)
-              captures[name] = JSONPath({ path: capture.jsonpath, json })[0]
+              stepResult.checks.json = {
+                expected: step.http.check.json,
+                given: json,
+                passed: deepEqual(json, step.http.check.json)
+              }
             }
 
-            if (capture.xpath) {
-              const dom = new DOMParser().parseFromString(body)
-              const result = xpath.select(capture.xpath, dom)
-              captures[name] = result.length > 0 ? (result[0] as any).firstChild.data : undefined
+            // Check Schema
+            if (step.http.check.jsonschema) {
+              let sample = body
+
+              if (res.headers['content-type']?.includes('json')) {
+                sample = JSON.parse(body)
+              }
+
+              const validate = schemaValidator.compile(step.http.check.jsonschema)
+              stepResult.checks.jsonschema = {
+                expected: step.http.check.jsonschema,
+                given: sample,
+                passed: validate(sample)
+              }
             }
 
-            if (capture.header) {
-              captures[name] = res.headers[capture.header]
+            // Check JSONPath
+            if (step.http.check.jsonpath) {
+              const json = JSON.parse(body)
+              stepResult.checks.jsonpath = {}
+
+              for (const path in step.http.check.jsonpath) {
+                const result = JSONPath({ path, json })
+
+                stepResult.checks.jsonpath[path] = {
+                  expected: step.http.check.jsonpath[path],
+                  given: result[0],
+                  passed: check(result[0], step.http.check.jsonpath[path])
+                }
+              }
             }
 
-            if (capture.selector) {
+            // Check XPath
+            if (step.http.check.xpath) {
+              stepResult.checks.xpath = {}
+
+              for (const path in step.http.check.xpath) {
+                const dom = new DOMParser().parseFromString(body)
+                const result = xpath.select(path, dom)
+
+                stepResult.checks.xpath[path] = {
+                  expected: step.http.check.xpath[path],
+                  given: result.length > 0 ? (result[0] as any).firstChild.data : undefined,
+                  passed: check(result.length > 0 ? (result[0] as any).firstChild.data : undefined, step.http.check.xpath[path])
+                }
+              }
+            }
+
+            // Check HTML5 Selector
+            if (step.http.check.selector) {
+              stepResult.checks.selector = {}
               const dom = cheerio.load(body)
-              captures[name] = dom(capture.selector).html()
+
+              for (const selector in step.http.check.selector) {
+                const result = dom(selector).html()
+
+                stepResult.checks.selector[selector] = {
+                  expected: step.http.check.selector[selector],
+                  given: result,
+                  passed: check(result, step.http.check.selector[selector])
+                }
+              }
             }
 
-            if (capture.cookie) {
-              captures[name] = getCookie(cookies, capture.cookie, res.url)
+            // Check Cookies
+            if (step.http.check.cookies) {
+              stepResult.checks.cookies = {}
+
+              for (const cookie in step.http.check.cookies) {
+                const value = getCookie(cookies, cookie, res.url)
+
+                stepResult.checks.cookies[cookie] = {
+                  expected: step.http.check.cookies[cookie],
+                  given: value,
+                  passed: check(value, step.http.check.cookies[cookie])
+                }
+              }
             }
 
-            if (capture.regex) {
-              captures[name] = body.match(capture.regex)?.[1]
+            // Check captures
+            if (step.http.check.captures) {
+              stepResult.checks.captures = {}
+
+              for (const capture in step.http.check.captures) {
+                stepResult.checks.captures[capture] = {
+                  expected: step.http.check.captures[capture],
+                  given: captures[capture],
+                  passed: check(captures[capture], step.http.check.captures[capture])
+                }
+              }
+            }
+
+            // Check status
+            if (step.http.check.status) {
+              stepResult.checks.status = {
+                expected: step.http.check.status,
+                given: res.statusCode,
+                passed: check(res.statusCode, step.http.check.status)
+              }
+            }
+
+            // Check statusText
+            if (step.http.check.statusText) {
+              stepResult.checks.statusText = {
+                expected: step.http.check.statusText,
+                given: res.statusMessage,
+                passed: check(res.statusMessage, step.http.check.statusText)
+              }
+            }
+
+            // Check whether request was redirected
+            if ('redirected' in step.http.check) {
+              stepResult.checks.redirected = {
+                expected: step.http.check.redirected,
+                given: res.redirectUrls.length > 0,
+                passed: res.redirectUrls.length > 0 === step.http.check.redirected
+              }
+            }
+
+            // Check redirects
+            if (step.http.check.redirects) {
+              stepResult.checks.redirects = {
+                expected: step.http.check.redirects,
+                given: res.redirectUrls,
+                passed: deepEqual(res.redirectUrls, step.http.check.redirects)
+              }
+            }
+
+            // Check sha256
+            if (step.http.check.sha256) {
+              const hash = crypto.createHash('sha256').update(Buffer.from(responseData)).digest('hex')
+              stepResult.checks.sha256 = {
+                expected: step.http.check.sha256,
+                given: hash,
+                passed: step.http.check.sha256 === hash
+              }
+            }
+
+            // Check md5
+            if (step.http.check.md5) {
+              const hash = crypto.createHash('md5').update(Buffer.from(responseData)).digest('hex')
+              stepResult.checks.md5 = {
+                expected: step.http.check.md5,
+                given: hash,
+                passed: step.http.check.md5 === hash
+              }
+            }
+
+            // Check Performance
+            if (step.http.check.performance){
+              stepResult.checks.performance = {}
+
+              for (const metric in step.http.check.performance){
+                stepResult.checks.performance[metric] = {
+                  expected: step.http.check.performance[metric],
+                  given: (res.timings.phases as any)[metric],
+                  passed: check((res.timings.phases as any)[metric], step.http.check.performance[metric])
+                }
+              }
+            }
+
+            // Check SSL certs
+            if (step.http.check.ssl && sslCertificate) {
+              stepResult.checks.ssl = {}
+
+              if ('valid' in step.http.check.ssl) {
+                stepResult.checks.ssl.valid = {
+                  expected: step.http.check.ssl.valid,
+                  given: stepResult.response.ssl?.valid,
+                  passed: stepResult.response.ssl?.valid === step.http.check.ssl.valid
+                }
+              }
+
+              if ('signed' in step.http.check.ssl) {
+                stepResult.checks.ssl.signed = {
+                  expected: step.http.check.ssl.signed,
+                  given: stepResult.response.ssl?.signed,
+                  passed: stepResult.response.ssl?.signed === step.http.check.ssl.signed
+                }
+              }
+
+              if (step.http.check.ssl.daysUntilExpiration) {
+                stepResult.checks.ssl.daysUntilExpiration = {
+                  expected: step.http.check.ssl.daysUntilExpiration,
+                  given: stepResult.response.ssl?.daysUntilExpiration,
+                  passed: check(stepResult.response.ssl?.daysUntilExpiration, step.http.check.ssl.daysUntilExpiration)
+                }
+              }
+            }
+
+            // Check byte size
+            if (step.http.check.size){
+              stepResult.checks.size = {
+                expected: step.http.check.size,
+                given: responseData.byteLength,
+                passed: check(responseData.byteLength, step.http.check.size)
+              }
             }
           }
         }
 
-        if (step.check) {
-          stepResult.checks = {}
+        if (step.grpc) {
+          stepResult.type = 'grpc'
 
-          // Check headers
-          if (step.check.headers){
-            stepResult.checks.headers = {}
+          const request: gRPCRequest = {
+            proto: step.grpc.proto,
+            host: step.grpc.host,
+            service: step.grpc.service,
+            method: step.grpc.method,
+            data: step.grpc.data,
+            tls: step.grpc.tls
+          }
 
-            for (const header in step.check.headers){
-              stepResult.checks.headers[header] = {
-                expected: step.check.headers[header],
-                given: res.headers[header.toLowerCase()],
-                passed: check(res.headers[header.toLowerCase()], step.check.headers[header])
+          const { message, size } = await makeRequest(step.grpc.proto, {
+            ...request,
+            beforeRequest: (req) => {
+              stepResult.request = request
+              options?.ee?.emit('step:grpc_request', request)
+            },
+            afterResponse: (res) => {
+              stepResult.response = res
+              options?.ee?.emit('step:grpc_response', res)
+            }
+          })
+
+          const responseDuration = Date.now() - stepResult.timestamp.valueOf()
+
+          // Captures
+          if (step.grpc.captures) {
+            for (const name in step.grpc.captures) {
+              const capture = step.grpc.captures[name]
+              if (capture.jsonpath) {
+                captures[name] = JSONPath({ path: capture.jsonpath, json: message })[0]
               }
             }
           }
 
-          // Check body
-          if (step.check.body) {
-            stepResult.checks.body = {
-              expected: step.check.body,
-              given: body.trim(),
-              passed: check(body.trim(), step.check.body)
-            }
-          }
+          if (step.grpc.check) {
+            stepResult.checks = {}
 
-          // Check JSON
-          if (step.check.json) {
-            const json = JSON.parse(body)
-            stepResult.checks.json = {
-              expected: step.check.json,
-              given: json,
-              passed: deepEqual(json, step.check.json)
-            }
-          }
-
-          // Check Schema
-          if (step.check.schema) {
-            let sample = body
-
-            if (res.headers['content-type']?.includes('json')) {
-              sample = JSON.parse(body)
-            }
-
-            const validate = schemaValidator.compile(step.check.schema)
-            stepResult.checks.schema = {
-              expected: step.check.schema,
-              given: sample,
-              passed: validate(sample)
-            }
-          }
-
-          // Check JSONPath
-          if (step.check.jsonpath) {
-            const json = JSON.parse(body)
-            stepResult.checks.jsonpath = {}
-
-            for (const path in step.check.jsonpath) {
-              const result = JSONPath({ path, json })
-
-              stepResult.checks.jsonpath[path] = {
-                expected: step.check.jsonpath[path],
-                given: result[0],
-                passed: check(result[0], step.check.jsonpath[path])
-              }
-            }
-          }
-
-          // Check XPath
-          if (step.check.xpath) {
-            stepResult.checks.xpath = {}
-
-            for (const path in step.check.xpath) {
-              const dom = new DOMParser().parseFromString(body)
-              const result = xpath.select(path, dom)
-
-              stepResult.checks.xpath[path] = {
-                expected: step.check.xpath[path],
-                given: result.length > 0 ? (result[0] as any).firstChild.data : undefined,
-                passed: check(result.length > 0 ? (result[0] as any).firstChild.data : undefined, step.check.xpath[path])
-              }
-            }
-          }
-
-          // Check HTML5 Selector
-          if (step.check.selector) {
-            stepResult.checks.selector = {}
-            const dom = cheerio.load(body)
-
-            for (const selector in step.check.selector) {
-              const result = dom(selector).html()
-
-              stepResult.checks.selector[selector] = {
-                expected: step.check.selector[selector],
-                given: result,
-                passed: check(result, step.check.selector[selector])
-              }
-            }
-          }
-
-          // Check Cookies
-          if (step.check.cookies) {
-            stepResult.checks.cookies = {}
-
-            for (const cookie in step.check.cookies) {
-              const value = getCookie(cookies, cookie, res.url)
-
-              stepResult.checks.cookies[cookie] = {
-                expected: step.check.cookies[cookie],
-                given: value,
-                passed: check(value, step.check.cookies[cookie])
-              }
-            }
-          }
-
-          // Check captures
-          if (step.check.captures) {
-            stepResult.checks.captures = {}
-
-            for (const capture in step.check.captures) {
-              stepResult.checks.captures[capture] = {
-                expected: step.check.captures[capture],
-                given: captures[capture],
-                passed: check(captures[capture], step.check.captures[capture])
-              }
-            }
-          }
-
-          // Check status
-          if (step.check.status) {
-            stepResult.checks.status = {
-              expected: step.check.status,
-              given: res.statusCode,
-              passed: check(res.statusCode, step.check.status)
-            }
-          }
-
-          // Check statusText
-          if (step.check.statusText) {
-            stepResult.checks.statusText = {
-              expected: step.check.statusText,
-              given: res.statusMessage,
-              passed: check(res.statusMessage, step.check.statusText)
-            }
-          }
-
-          // Check whether request was redirected
-          if ('redirected' in step.check) {
-            stepResult.checks.redirected = {
-              expected: step.check.redirected,
-              given: res.redirectUrls.length > 0,
-              passed: res.redirectUrls.length > 0 === step.check.redirected
-            }
-          }
-
-          // Check redirects
-          if (step.check.redirects) {
-            stepResult.checks.redirects = {
-              expected: step.check.redirects,
-              given: res.redirectUrls,
-              passed: deepEqual(res.redirectUrls, step.check.redirects)
-            }
-          }
-
-          // Check sha256
-          if (step.check.sha256) {
-            const hash = crypto.createHash('sha256').update(Buffer.from(responseData)).digest('hex')
-            stepResult.checks.sha256 = {
-              expected: step.check.sha256,
-              given: hash,
-              passed: step.check.sha256 === hash
-            }
-          }
-
-          // Check md5
-          if (step.check.md5) {
-            const hash = crypto.createHash('md5').update(Buffer.from(responseData)).digest('hex')
-            stepResult.checks.md5 = {
-              expected: step.check.md5,
-              given: hash,
-              passed: step.check.md5 === hash
-            }
-          }
-
-          // Check Performance
-          if (step.check.performance){
-            stepResult.checks.performance = {}
-
-            for (const metric in step.check.performance){
-              stepResult.checks.performance[metric] = {
-                expected: step.check.performance[metric],
-                given: (res.timings.phases as any)[metric],
-                passed: check((res.timings.phases as any)[metric], step.check.performance[metric])
-              }
-            }
-          }
-
-          // Check SSL certs
-          if (step.check.ssl && sslCertificate) {
-            stepResult.checks.ssl = {}
-
-            if ('valid' in step.check.ssl) {
-              stepResult.checks.ssl.valid = {
-                expected: step.check.ssl.valid,
-                given: stepResult.response.ssl?.valid,
-                passed: stepResult.response.ssl?.valid === step.check.ssl.valid
+            // Check JSON
+            if (step.grpc.check.json) {
+              stepResult.checks.json = {
+                expected: step.grpc.check.json,
+                given: message,
+                passed: deepEqual(message, step.grpc.check.json)
               }
             }
 
-            if ('signed' in step.check.ssl) {
-              stepResult.checks.ssl.signed = {
-                expected: step.check.ssl.signed,
-                given: stepResult.response.ssl?.signed,
-                passed: stepResult.response.ssl?.signed === step.check.ssl.signed
+            // Check Schema
+            if (step.grpc.check.jsonschema) {
+              const validate = schemaValidator.compile(step.grpc.check.jsonschema)
+              stepResult.checks.jsonschema = {
+                expected: step.grpc.check.jsonschema,
+                given: message,
+                passed: validate(message)
               }
             }
 
-            if (step.check.ssl.daysUntilExpiration) {
-              stepResult.checks.ssl.daysUntilExpiration = {
-                expected: step.check.ssl.daysUntilExpiration,
-                given: stepResult.response.ssl?.daysUntilExpiration,
-                passed: check(stepResult.response.ssl?.daysUntilExpiration, step.check.ssl.daysUntilExpiration)
+            // Check JSONPath
+            if (step.grpc.check.jsonpath) {
+              stepResult.checks.jsonpath = {}
+
+              for (const path in step.grpc.check.jsonpath) {
+                const result = JSONPath({ path, json: message })
+
+                stepResult.checks.jsonpath[path] = {
+                  expected: step.grpc.check.jsonpath[path],
+                  given: result[0],
+                  passed: check(result[0], step.grpc.check.jsonpath[path])
+                }
               }
             }
-          }
 
-          // Check byte size
-          if (step.check.size){
-            stepResult.checks.size = {
-              expected: step.check.size,
-              given: responseData.byteLength,
-              passed: check(responseData.byteLength, step.check.size)
+            // Check captures
+            if (step.grpc.check.captures) {
+              stepResult.checks.captures = {}
+
+              for (const capture in step.grpc.check.captures) {
+                stepResult.checks.captures[capture] = {
+                  expected: step.grpc.check.captures[capture],
+                  given: captures[capture],
+                  passed: check(captures[capture], step.grpc.check.captures[capture])
+                }
+              }
+            }
+
+            // Check byte size
+            if (step.grpc.check.size){
+              stepResult.checks.size = {
+                expected: step.grpc.check.size,
+                given: size,
+                passed: check(size, step.grpc.check.size)
+              }
+            }
+
+            // Check performance
+            if (step.grpc.check.performance){
+              stepResult.checks.performance = {}
+
+              if (step.grpc.check.performance.total) {
+                stepResult.checks.performance.total = {
+                  expected: step.grpc.check.performance.total,
+                  given: responseDuration,
+                  passed: check(responseDuration, step.grpc.check.performance.total)
+                }
+              }
             }
           }
         }

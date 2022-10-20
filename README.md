@@ -33,12 +33,14 @@ const workflow = {
     default: {
       steps: [{
         name: "GET request",
-        url: "https://{{env.host}}",
-        method: "GET",
-        check: {
-          status: "/^20/"
-        }
-      }]
+        http:{
+          url: "https://{{env.host}}",
+          method: "GET",
+          check: {
+            status: "/^20/"
+          }
+        }]
+      }
     }
   }
 }
@@ -50,8 +52,10 @@ run(workflow).then(console.log)
 
 If you supply an `EventEmitter` as argument, you can subscribe to following events:
 
-- `step:request`, when a request is made
-- `step:response`, when a response is received
+- `step:http_request`, when a http request is made
+- `step:http_response`, when a http response is received
+- `step:grpc_request`, when a grpc request is made
+- `step:grpc_response`, when a grpc is received
 - `step:result`, when step finishes
 - `step:error`, when step errors
 - `test:result`, when test finishes
@@ -74,10 +78,12 @@ const workflow = {
     default: {
       steps: [{
         name: "GET request",
-        url: "https://{{env.host}}",
-        method: "GET",
-        check: {
-          status: "/^20/"
+        http: {
+          url: "https://{{env.host}}",
+          method: "GET",
+          check: {
+            status: "/^20/"
+          }
         }
       }]
     }
