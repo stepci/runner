@@ -193,7 +193,7 @@ export type HTTPStepCheck = {
   headers?: StepCheckValue | StepCheckMatcher
   body?: string | Matcher[]
   json?: object
-  jsonschema?: object
+  schema?: object
   jsonpath?: StepCheckJSONPath | StepCheckMatcher
   xpath?: StepCheckValue | StepCheckMatcher
   selector?: StepCheckValue | StepCheckMatcher
@@ -208,7 +208,7 @@ export type HTTPStepCheck = {
 
 export type gRPCStepCheck = {
   json?: object
-  jsonschema?: object
+  schema?: object
   jsonpath?: StepCheckJSONPath | StepCheckMatcher
   captures?: StepCheckCaptures
   performance?: StepCheckPerformance | StepCheckMatcher
@@ -305,7 +305,7 @@ export type StepCheckResult = {
   redirected?: CheckResult
   redirects?: CheckResult
   json?: CheckResult
-  jsonschema?: CheckResult
+  schema?: CheckResult
   jsonpath?: CheckResults
   xpath?: CheckResults
   selector?: CheckResults
@@ -407,11 +407,11 @@ async function runTest (id: string, test: Test, options?: WorkflowOptions, confi
   addFormats(schemaValidator)
   let previous: StepResult | undefined
 
-  // Add schemas to jsonschema Validator
+  // Add schemas to schema Validator
   if (components) {
     if (components.schemas) {
-      for (const jsonschema in components.schemas) {
-        schemaValidator.addSchema(components.schemas[jsonschema], `#/components/schemas/${jsonschema}`)
+      for (const schema in components.schemas) {
+        schemaValidator.addSchema(components.schemas[schema], `#/components/schemas/${schema}`)
       }
     }
   }
@@ -649,16 +649,16 @@ async function runTest (id: string, test: Test, options?: WorkflowOptions, confi
             }
 
             // Check Schema
-            if (step.http.check.jsonschema) {
+            if (step.http.check.schema) {
               let sample = body
 
               if (res.headers['content-type']?.includes('json')) {
                 sample = JSON.parse(body)
               }
 
-              const validate = schemaValidator.compile(step.http.check.jsonschema)
-              stepResult.checks.jsonschema = {
-                expected: step.http.check.jsonschema,
+              const validate = schemaValidator.compile(step.http.check.schema)
+              stepResult.checks.schema = {
+                expected: step.http.check.schema,
                 given: sample,
                 passed: validate(sample)
               }
@@ -898,10 +898,10 @@ async function runTest (id: string, test: Test, options?: WorkflowOptions, confi
             }
 
             // Check Schema
-            if (step.grpc.check.jsonschema) {
-              const validate = schemaValidator.compile(step.grpc.check.jsonschema)
-              stepResult.checks.jsonschema = {
-                expected: step.grpc.check.jsonschema,
+            if (step.grpc.check.schema) {
+              const validate = schemaValidator.compile(step.grpc.check.schema)
+              stepResult.checks.schema = {
+                expected: step.grpc.check.schema,
                 given: message,
                 passed: validate(message)
               }
