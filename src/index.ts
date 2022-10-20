@@ -1,7 +1,7 @@
 import got, { Method } from 'got'
 import { CookieJar } from 'tough-cookie'
 import { renderTemplate } from 'liquidless'
-import { faker } from 'liquidless-faker'
+import { fake } from 'liquidless-faker'
 import xpath from 'xpath'
 import FormData from 'form-data'
 import * as cheerio from 'cheerio'
@@ -400,7 +400,7 @@ async function runTest (id: string, test: Test, options?: WorkflowOptions, confi
         },
         {
           filters: {
-            faker
+            fake
           }
         }) as Step
 
