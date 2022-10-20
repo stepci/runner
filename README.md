@@ -33,7 +33,7 @@ const workflow = {
     default: {
       steps: [{
         name: "GET request",
-        http:{
+        http: {
           url: "https://{{env.host}}",
           method: "GET",
           check: {
