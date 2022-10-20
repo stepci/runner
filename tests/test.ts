@@ -3,7 +3,7 @@ import { EventEmitter } from 'node:events'
 
 // Example workflow
 const workflow = {
-  version: "1.0",
+  version: "1.1",
   name: "Status Test",
   env: {
     host: "example.com"
