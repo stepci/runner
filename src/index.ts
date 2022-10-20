@@ -544,8 +544,8 @@ async function runTest (id: string, test: Test, options?: WorkflowOptions, confi
               rejectUnauthorized: config?.rejectUnauthorized !== undefined ? config?.rejectUnauthorized : false
             }
           })
-          .on('request', request => options?.ee?.emit('step:request', request))
-          .on('response', response => options?.ee?.emit('step:response', response))
+          .on('request', request => options?.ee?.emit('step:http_request', request))
+          .on('response', response => options?.ee?.emit('step:http_response', response))
           .on('response', response => {
             if ((response.socket as TLSSocket).getPeerCertificate) {
               sslCertificate = (response.socket as TLSSocket).getPeerCertificate()
@@ -861,11 +861,19 @@ async function runTest (id: string, test: Test, options?: WorkflowOptions, confi
             tls: step.grpc.tls
           }
 
-          const { message, size } = await makeRequest(step.grpc.proto, request)
-          const responseDuration = Date.now() - stepResult.timestamp.valueOf()
+          const { message, size } = await makeRequest(step.grpc.proto, {
+            ...request,
+            beforeRequest: (req) => {
+              stepResult.request = request
+              options?.ee?.emit('step:grpc_request', request)
+            },
+            afterResponse: (res) => {
+              stepResult.response = res
+              options?.ee?.emit('step:grpc_response', res)
+            }
+          })
 
-          stepResult.request = request
-          stepResult.response = { message, size }
+          const responseDuration = Date.now() - stepResult.timestamp.valueOf()
 
           // Captures
           if (step.grpc.captures) {
