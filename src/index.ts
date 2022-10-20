@@ -262,7 +262,7 @@ export type StepResult = {
   skipped: boolean
   timestamp: Date
   duration: number
-  request?: HTTPStepRequest | gRPCRequest
+  request?: HTTPStepRequest | gRPCStepRequest
   response?: HTTPStepResponse | gRPCResponse
 }
 
@@ -271,7 +271,7 @@ export type HTTPStepRequest = {
   method: string
 }
 
-export type gRPCRequest = {
+export type gRPCStepRequest = {
   proto: string
   host: string
   service: string
@@ -852,7 +852,7 @@ async function runTest (id: string, test: Test, options?: WorkflowOptions, confi
         if (step.grpc) {
           stepResult.type = 'grpc'
 
-          const request: gRPCRequest = {
+          const request: gRPCStepRequest = {
             proto: step.grpc.proto,
             host: step.grpc.host,
             service: step.grpc.service,
