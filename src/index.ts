@@ -107,7 +107,7 @@ export type HTTPStep = {
   auth?: HTTPStepAuth
   json?: object
   graphql?: HTTPStepGraphQL
-  captures?: StepCaptures
+  captures?: HTTPStepCaptures
   check?: HTTPStepCheck
   followRedirects?: boolean
   timeout?: number
@@ -124,7 +124,7 @@ export type gRPCStep = {
     privateKey: string
     certChain: string
   }
-  captures?: StepCaptures
+  captures?: gRPCStepCaptures
   check?: gRPCStepCheck
 }
 
@@ -168,17 +168,25 @@ export type HTTPStepGraphQL = {
   variables: object
 }
 
-export type StepCaptures = {
-  [key: string]: StepCapture
+export type HTTPStepCaptures = {
+  [key: string]: HTTPStepCapture
 }
 
-export type StepCapture = {
+export type gRPCStepCaptures = {
+  [key: string]: gRPCStepCapture
+}
+
+export type HTTPStepCapture = {
   xpath?: string
   jsonpath?: string
   header?: string
   selector?: string
   cookie?: string
   regex?: string
+}
+
+export type gRPCStepCapture = {
+  jsonpath?: string
 }
 
 type CapturesStorage = {
