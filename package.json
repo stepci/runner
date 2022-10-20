@@ -29,6 +29,7 @@
     "ajv-formats": "^2.1.1",
     "cheerio": "^1.0.0-rc.12",
     "ci-info": "^3.5.0",
+    "cool-grpc": "^1.0.5",
     "deep-equal": "^2.0.5",
     "filtrex": "^3.0.0",
     "flat": "^5.0.2",
