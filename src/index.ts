@@ -869,7 +869,7 @@ async function runTest (id: string, test: Test, options?: WorkflowOptions, confi
             tls: step.grpc.tls
           }
 
-          const { message, size } = await makeRequest(step.grpc.proto, {
+          const { data, size } = await makeRequest(step.grpc.proto, {
             ...request,
             beforeRequest: (req) => {
               stepResult.request = request
@@ -888,7 +888,7 @@ async function runTest (id: string, test: Test, options?: WorkflowOptions, confi
             for (const name in step.grpc.captures) {
               const capture = step.grpc.captures[name]
               if (capture.jsonpath) {
-                captures[name] = JSONPath({ path: capture.jsonpath, json: message })[0]
+                captures[name] = JSONPath({ path: capture.jsonpath, json: data })[0]
               }
             }
           }
@@ -900,8 +900,8 @@ async function runTest (id: string, test: Test, options?: WorkflowOptions, confi
             if (step.grpc.check.json) {
               stepResult.checks.json = {
                 expected: step.grpc.check.json,
-                given: message,
-                passed: deepEqual(message, step.grpc.check.json)
+                given: data,
+                passed: deepEqual(data, step.grpc.check.json)
               }
             }
 
@@ -910,8 +910,8 @@ async function runTest (id: string, test: Test, options?: WorkflowOptions, confi
               const validate = schemaValidator.compile(step.grpc.check.schema)
               stepResult.checks.schema = {
                 expected: step.grpc.check.schema,
-                given: message,
-                passed: validate(message)
+                given: data,
+                passed: validate(data)
               }
             }
 
@@ -920,7 +920,7 @@ async function runTest (id: string, test: Test, options?: WorkflowOptions, confi
               stepResult.checks.jsonpath = {}
 
               for (const path in step.grpc.check.jsonpath) {
-                const result = JSONPath({ path, json: message })
+                const result = JSONPath({ path, json: data })
 
                 stepResult.checks.jsonpath[path] = {
                   expected: step.grpc.check.jsonpath[path],
