@@ -1,4 +1,4 @@
-import got, { Method } from 'got'
+import got, { Method, Headers } from 'got'
 import { gRPCResponse, makeRequest, gRPCRequestMetadata } from 'cool-grpc'
 import { CookieJar } from 'tough-cookie'
 import { renderTemplate } from 'liquidless'
@@ -309,6 +309,7 @@ export type HTTPStepResponse = {
   duration?: number
   contentType?: string
   timings: any
+  headers?: Headers
   ssl?: StepResponseSSL
   body: Buffer
 }
@@ -590,6 +591,7 @@ async function runTest (id: string, test: Test, options?: WorkflowOptions, confi
             status: res.statusCode,
             statusText: res.statusMessage,
             duration: res.timings.phases.total,
+            headers: res.headers,
             contentType: res.headers['content-type']?.split(';')[0],
             timings: res.timings,
             body: responseData
