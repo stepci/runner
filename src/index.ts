@@ -279,8 +279,11 @@ export type StepResult = {
 }
 
 export type HTTPStepRequest = {
+  protocol: string
   url: string
   method: string
+  headers?: HTTPStepHeaders
+  body?: string | Buffer | FormData
 }
 
 export type gRPCStepRequest = {
@@ -300,12 +303,14 @@ export type gRPCStepRequestTLS = {
 }
 
 export type HTTPStepResponse = {
+  protocol: string
   status: number
   statusText?: string
   duration?: number
   contentType?: string
   timings: any
   ssl?: StepResponseSSL
+  body: Buffer
 }
 
 export type StepResponseSSL = {
@@ -573,16 +578,21 @@ async function runTest (id: string, test: Test, options?: WorkflowOptions, confi
           const body = await new TextDecoder().decode(responseData)
 
           stepResult.request = {
+            protocol: 'HTTP/1.1',
             url: res.url,
-            method: step.http.method
+            method: step.http.method,
+            headers: step.http.headers,
+            body: requestBody
           }
 
           stepResult.response = {
+            protocol: `HTTP/${res.httpVersion}`,
             status: res.statusCode,
             statusText: res.statusMessage,
             duration: res.timings.phases.total,
             contentType: res.headers['content-type']?.split(';')[0],
-            timings: res.timings
+            timings: res.timings,
+            body: responseData
           }
 
           if (sslCertificate) {

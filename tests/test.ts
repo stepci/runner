@@ -32,7 +32,15 @@ const workflow = {
   },
   tests: {
     "example": {
-      "steps": [{
+      "steps": [
+        {
+          "name": "GET request",
+          "http": {
+            "url": "https://example.com",
+            "method": "GET"
+          }
+        },
+      {
         "name": "GET request",
         "grpc": {
           "proto": ["tests/helloworld.proto"],
