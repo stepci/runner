@@ -1,5 +1,5 @@
 import got, { Method } from 'got'
-import { gRPCResponse, makeRequest } from 'cool-grpc'
+import { gRPCResponse, makeRequest, gRPCRequestMetadata } from 'cool-grpc'
 import { CookieJar } from 'tough-cookie'
 import { renderTemplate } from 'liquidless'
 import { fake } from 'liquidless-faker'
@@ -40,9 +40,11 @@ export type WorkflowComponents = {
 }
 
 export type WorkflowConfig = {
-  baseURL?: string
-  rejectUnauthorized?: boolean
-  continueOnFail?: boolean
+  continueOnFail?: boolean,
+  http?: {
+    baseURL?: string
+    rejectUnauthorized?: boolean
+  }
 }
 
 type WorkflowOptions = {
@@ -101,7 +103,7 @@ export type HTTPStep = {
   headers?: HTTPStepHeaders
   params?: HTTPStepParams
   cookies?: HTTPStepCookies
-  body?: string | HTTPStepFile
+  body?: string | StepFile
   form?: HTTPStepForm
   formData?: HTTPStepMultiPartForm
   auth?: HTTPStepAuth
@@ -114,18 +116,21 @@ export type HTTPStep = {
 }
 
 export type gRPCStep = {
-  proto: string
+  proto: string | string[]
   host: string
   service: string
   method: string
   data: object
-  tls?: {
-    rootCerts: string
-    privateKey: string
-    certChain: string
-  }
+  metadata?: gRPCRequestMetadata
+  tls?: gRPCStepTLS
   captures?: gRPCStepCaptures
   check?: gRPCStepCheck
+}
+
+export type gRPCStepTLS = {
+  rootCerts?: string | StepFile
+  privateKey?: string | StepFile
+  certChain?: string | StepFile
 }
 
 export type HTTPStepHeaders = {
@@ -145,10 +150,10 @@ export type HTTPStepForm = {
 }
 
 export type HTTPStepMultiPartForm = {
-  [key: string]: string | HTTPStepFile
+  [key: string]: string | StepFile
 }
 
-export type HTTPStepFile = {
+export type StepFile = {
   file: string
 }
 
@@ -157,7 +162,6 @@ export type HTTPStepAuth = {
     username: string
     password: string
   }
-
   bearer?: {
     token: string
   }
@@ -280,16 +284,19 @@ export type HTTPStepRequest = {
 }
 
 export type gRPCStepRequest = {
-  proto: string
+  proto: string | string[]
   host: string
   service: string
   method: string
+  metadata?: gRPCRequestMetadata
   data: object
-  tls?: {
-    rootCerts: string
-    privateKey: string
-    certChain: string
-  }
+  tls?: gRPCStepRequestTLS
+}
+
+export type gRPCStepRequestTLS = {
+  rootCerts?: string
+  privateKey?: string
+  certChain?: string
 }
 
 export type HTTPStepResponse = {
@@ -461,11 +468,11 @@ async function runTest (id: string, test: Test, options?: WorkflowOptions, confi
           let requestBody: string | FormData | Buffer | undefined
 
           // Prefix URL
-          if (config?.baseURL) {
+          if (config?.http?.baseURL) {
             try {
               new URL(step.http.url)
             } catch {
-              step.http.url = config.baseURL + step.http.url
+              step.http.url = config.http.baseURL + step.http.url
             }
           }
 
@@ -475,8 +482,8 @@ async function runTest (id: string, test: Test, options?: WorkflowOptions, confi
               requestBody = step.http.body
             }
 
-            if ((step.http.body as HTTPStepFile).file) {
-              requestBody = fs.readFileSync((step.http.body as HTTPStepFile).file)
+            if ((step.http.body as StepFile).file) {
+              requestBody = await fs.promises.readFile((step.http.body as StepFile).file)
             }
           }
 
@@ -509,8 +516,9 @@ async function runTest (id: string, test: Test, options?: WorkflowOptions, confi
                 formData.append(field, step.http.formData[field])
               }
 
-              if ((step.http.formData[field] as HTTPStepFile).file) {
-                formData.append(field, fs.readFileSync((step.http.formData[field] as HTTPStepFile).file))
+              if ((step.http.formData[field] as StepFile).file) {
+                const file = await fs.promises.readFile((step.http.formData[field] as StepFile).file)
+                formData.append(field, file)
               }
             }
 
@@ -549,7 +557,7 @@ async function runTest (id: string, test: Test, options?: WorkflowOptions, confi
             timeout: step.http.timeout,
             cookieJar: cookies,
             https: {
-              rejectUnauthorized: config?.rejectUnauthorized !== undefined ? config?.rejectUnauthorized : false
+              rejectUnauthorized: config?.http?.rejectUnauthorized !== undefined ? config?.http.rejectUnauthorized : false
             }
           })
           .on('request', request => options?.ee?.emit('step:http_request', request))
@@ -860,13 +868,45 @@ async function runTest (id: string, test: Test, options?: WorkflowOptions, confi
         if (step.grpc) {
           stepResult.type = 'grpc'
 
+          // Load TLS configuration from file or string
+          let tlsConfig: gRPCStepRequestTLS = {}
+          if (step.grpc.tls) {
+            if (step.grpc.tls.rootCerts) {
+              if ((step.grpc.tls.rootCerts as StepFile).file) {
+                const file = await fs.promises.readFile((step.grpc.tls.rootCerts as StepFile).file)
+                tlsConfig.rootCerts = file.toString()
+              } else {
+                tlsConfig.rootCerts = step.grpc.tls.rootCerts as string
+              }
+            }
+
+            if (step.grpc.tls.privateKey) {
+              if ((step.grpc.tls.privateKey as StepFile).file) {
+                const file = await fs.promises.readFile((step.grpc.tls.privateKey as StepFile).file)
+                tlsConfig.privateKey = file.toString()
+              } else {
+                tlsConfig.privateKey = step.grpc.tls.privateKey as string
+              }
+            }
+
+            if (step.grpc.tls.certChain) {
+              if ((step.grpc.tls.certChain as StepFile).file) {
+                const file = await fs.promises.readFile((step.grpc.tls.certChain as StepFile).file)
+                tlsConfig.certChain = file.toString()
+              } else {
+                tlsConfig.certChain = step.grpc.tls.certChain as string
+              }
+            }
+          }
+
           const request: gRPCStepRequest = {
             proto: step.grpc.proto,
             host: step.grpc.host,
+            metadata: step.grpc.metadata,
             service: step.grpc.service,
             method: step.grpc.method,
             data: step.grpc.data,
-            tls: step.grpc.tls
+            tls: tlsConfig
           }
 
           const { data, size } = await makeRequest(step.grpc.proto, {
