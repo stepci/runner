@@ -13,7 +13,7 @@ import flatten from 'flat'
 import { EventEmitter } from 'node:events'
 import crypto from 'crypto'
 import fs from 'fs'
-import yaml from 'yaml'
+import yaml from 'js-yaml'
 import deepEqual from 'deep-equal'
 import Ajv from 'ajv'
 import addFormats from 'ajv-formats'
@@ -381,13 +381,13 @@ function didChecksPass (stepResult: StepResult) {
 
 // Run from YAML string
 export function runFromYAML (yamlString: string, options?: WorkflowOptions): Promise<WorkflowResult> {
-  return run(yaml.parse(yamlString), options)
+  return run(yaml.load(yamlString) as Workflow, options)
 }
 
 // Run from test file
 export async function runFromFile (path: string, options?: WorkflowOptions): Promise<WorkflowResult> {
-  const testFile = (await fs.promises.readFile(path)).toString()
-  const config = yaml.parse(testFile)
+  const testFile = await fs.promises.readFile(path)
+  const config = yaml.load(testFile.toString()) as Workflow
   return run(config, { ...options, path })
 }
 

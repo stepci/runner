@@ -35,18 +35,19 @@
     "flat": "^5.0.2",
     "form-data": "^4.0.0",
     "got": "^11.8.3",
+    "js-yaml": "^4.1.0",
     "jsonpath-plus": "^7.2.0",
     "liquidless": "^1.0.8",
     "liquidless-faker": "^1.0.1",
     "tough-cookie": "^4.1.2",
     "xmldom": "^0.6.0",
-    "xpath": "^0.0.32",
-    "yaml": "^2.1.1"
+    "xpath": "^0.0.32"
   },
   "devDependencies": {
     "@tsconfig/node16": "^1.0.3",
     "@types/deep-equal": "^1.0.1",
     "@types/flat": "^5.0.2",
+    "@types/js-yaml": "^4.0.5",
     "@types/node": "^18.7.18",
     "@types/tough-cookie": "^4.0.2",
     "@types/xmldom": "^0.1.31",
