@@ -30,7 +30,7 @@ const workflow = {
       }
     }
   },
-  flows: {
+  tests: {
     "example": {
       "steps": [
         {
@@ -62,4 +62,4 @@ const workflow = {
 }
 
 const ee = new EventEmitter()
-run(workflow).then(({ result }) => console.log(result.flows[0].steps[0]))
+run(workflow).then(({ result }) => console.log(result.tests[0].steps[0]))
