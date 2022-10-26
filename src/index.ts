@@ -28,7 +28,7 @@ export type Workflow = {
   version: string
   name: string
   env?: EnvironmentVariables
-  tests: Tests
+  flows: flows
   components?: WorkflowComponents
   config?: WorkflowConfig
 }
@@ -61,7 +61,7 @@ type WorkflowOptionsSecrets = {
 export type WorkflowResult = {
   workflow: Workflow
   result: {
-    tests: TestResult[]
+    flows: TestResult[]
     passed: boolean
     timestamp: Date
     duration: number
@@ -76,7 +76,7 @@ export type Test = {
   config?: TestConfig
 }
 
-export type Tests = {
+export type flows = {
   [key: string]: Test
 }
 
@@ -395,13 +395,13 @@ export async function runFromFile (path: string, options?: WorkflowOptions): Pro
 export async function run (workflow: Workflow, options?: WorkflowOptions): Promise<WorkflowResult> {
   const timestamp = new Date()
   const env = { ...workflow.env ?? {}, ...options?.env ?? {} }
-  const tests = await Promise.all(Object.values(workflow.tests).map((test, i) => runTest(Object.keys(workflow.tests)[i], test, options, workflow.config, env, workflow.components)))
+  const flows = await Promise.all(Object.entries(workflow.flows).map(([id, test]) => runTest(id, test, options, workflow.config, env, workflow.components)))
 
   const workflowResult: WorkflowResult = {
     workflow,
     result: {
-      tests,
-      passed: tests.every(test => test.passed),
+      flows,
+      passed: flows.every(test => test.passed),
       timestamp,
       duration: Date.now() - timestamp.valueOf()
     },
