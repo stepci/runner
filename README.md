@@ -29,8 +29,8 @@ const workflow = {
   env: {
     host: "example.com"
   },
-  tests: {
-    default: {
+  flows: {
+    example: {
       steps: [{
         name: "GET request",
         http: {
@@ -39,8 +39,8 @@ const workflow = {
           check: {
             status: "/^20/"
           }
-        }]
-      }
+        }
+      }]
     }
   }
 }
@@ -74,8 +74,8 @@ const workflow = {
   env: {
     host: "example.com"
   },
-  tests: {
-    default: {
+  flows: {
+    example: {
       steps: [{
         name: "GET request",
         http: {
