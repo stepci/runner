@@ -68,6 +68,7 @@ export type WorkflowResult = {
     passed: boolean
     timestamp: Date
     duration: number
+    co2: number
   }
   path?: string
 }
@@ -278,6 +279,7 @@ export type TestResult = {
   passed: boolean
   timestamp: Date
   duration: number
+  co2: number
 }
 
 export type StepResult = {
@@ -292,8 +294,9 @@ export type StepResult = {
   skipped: boolean
   timestamp: Date
   duration: number
+  co2: number
   request?: HTTPStepRequest | gRPCStepRequest
-  response?: HTTPStepResponse | gRPCResponse
+  response?: HTTPStepResponse | gRPCStepResponse
 }
 
 export type HTTPStepRequest = {
@@ -330,6 +333,13 @@ export type HTTPStepResponse = {
   headers?: Headers
   ssl?: StepResponseSSL
   body: Buffer
+  co2: number
+}
+
+export type gRPCStepResponse = {
+  data: object | object[]
+  duration: number
+  co2: number
 }
 
 export type StepResponseSSL = {
@@ -448,7 +458,8 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
       tests,
       passed: tests.every(test => test.passed),
       timestamp,
-      duration: Date.now() - timestamp.valueOf()
+      duration: Date.now() - timestamp.valueOf(),
+      co2: tests.map(test => test.co2).reduce((a, b) => a + b)
     },
     path: options?.path
   }
@@ -464,11 +475,13 @@ async function runTest (id: string, test: Test, schemaValidator: Ajv, options?: 
     steps: [],
     passed: true,
     timestamp: new Date(),
-    duration: 0
+    duration: 0,
+    co2: 0
   }
 
   const captures: CapturesStorage = {}
   const cookies = new CookieJar()
+  const ssw = new co2()
   let previous: StepResult | undefined
   let testData: object = {}
 
@@ -487,7 +500,8 @@ async function runTest (id: string, test: Test, schemaValidator: Ajv, options?: 
       passed: true,
       errored: false,
       skipped: false,
-      duration: 0
+      duration: 0,
+      co2: 0
     }
 
     // Skip current step is the previous one failed or condition was unmet
@@ -637,7 +651,8 @@ async function runTest (id: string, test: Test, schemaValidator: Ajv, options?: 
             headers: res.headers,
             contentType: res.headers['content-type']?.split(';')[0],
             timings: res.timings,
-            body: responseData
+            body: responseData,
+            co2: ssw.perByte(responseData.byteLength)
           }
 
           if (sslCertificate) {
@@ -920,12 +935,10 @@ async function runTest (id: string, test: Test, schemaValidator: Ajv, options?: 
 
             // Check co2 emissions
             if (step.http.check.co2) {
-              const ssw = new co2()
-
               stepResult.checks.co2 = {
                 expected: step.http.check.co2,
-                given: ssw.perByte(responseData.byteLength),
-                passed: check(ssw.perByte(responseData.byteLength), step.http.check.co2)
+                given: stepResult.response.co2,
+                passed: check(stepResult.response.co2, step.http.check.co2)
               }
             }
           }
@@ -982,12 +995,15 @@ async function runTest (id: string, test: Test, schemaValidator: Ajv, options?: 
               options?.ee?.emit('step:grpc_request', request)
             },
             afterResponse: (res) => {
-              stepResult.response = res
+              stepResult.response = {
+                data: res.data,
+                duration: Date.now() - stepResult.timestamp.valueOf(),
+                co2: ssw.perByte(res.size)
+              }
+
               options?.ee?.emit('step:grpc_response', res)
             }
           })
-
-          const responseDuration = Date.now() - stepResult.timestamp.valueOf()
 
           // Captures
           if (step.grpc.captures) {
@@ -1056,8 +1072,8 @@ async function runTest (id: string, test: Test, schemaValidator: Ajv, options?: 
               if (step.grpc.check.performance.total) {
                 stepResult.checks.performance.total = {
                   expected: step.grpc.check.performance.total,
-                  given: responseDuration,
-                  passed: check(responseDuration, step.grpc.check.performance.total)
+                  given: stepResult.response?.duration,
+                  passed: check(stepResult.response?.duration, step.grpc.check.performance.total)
                 }
               }
             }
@@ -1073,12 +1089,10 @@ async function runTest (id: string, test: Test, schemaValidator: Ajv, options?: 
 
             // Check co2 emissions
             if (step.grpc.check.co2) {
-              const ssw = new co2()
-
               stepResult.checks.co2 = {
                 expected: step.grpc.check.co2,
-                given: ssw.perByte(size),
-                passed: check(ssw.perByte(size), step.grpc.check.co2)
+                given: stepResult.response?.co2,
+                passed: check(stepResult.response?.co2, step.grpc.check.co2)
               }
             }
           }
@@ -1094,6 +1108,7 @@ async function runTest (id: string, test: Test, schemaValidator: Ajv, options?: 
     }
 
     stepResult.duration = Date.now() - stepResult.timestamp.valueOf()
+    stepResult.co2 = stepResult.response?.co2 || 0
     testResult.steps.push(stepResult)
     previous = stepResult
 
@@ -1101,6 +1116,7 @@ async function runTest (id: string, test: Test, schemaValidator: Ajv, options?: 
   }
 
   testResult.duration = testResult.steps.map(step => step.duration).reduce((a, b) => a + b)
+  testResult.co2 = testResult.steps.map(step => step.co2).reduce((a, b) => a + b)
   testResult.passed = testResult.steps.every(step => step.passed)
 
   options?.ee?.emit('test:result', testResult)
