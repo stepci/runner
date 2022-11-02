@@ -337,7 +337,7 @@ export type HTTPStepResponse = {
 }
 
 export type gRPCStepResponse = {
-  data: object | object[]
+  body: object | object[]
   duration: number
   co2: number
 }
@@ -996,7 +996,7 @@ async function runTest (id: string, test: Test, schemaValidator: Ajv, options?: 
             },
             afterResponse: (res) => {
               stepResult.response = {
-                data: res.data,
+                body: res.data,
                 duration: Date.now() - stepResult.timestamp.valueOf(),
                 co2: ssw.perByte(res.size)
               }
