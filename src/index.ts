@@ -3,6 +3,7 @@ import { gRPCResponse, makeRequest, gRPCRequestMetadata } from 'cool-grpc'
 import { CookieJar } from 'tough-cookie'
 import { renderTemplate } from 'liquidless'
 import { fake } from 'liquidless-faker'
+import { naughtystring } from 'liquidless-naughtystrings'
 import xpath from 'xpath'
 import FormData from 'form-data'
 import * as cheerio from 'cheerio'
@@ -14,6 +15,7 @@ import { EventEmitter } from 'node:events'
 import crypto from 'crypto'
 import fs from 'fs'
 import yaml from 'js-yaml'
+import * as csv from '@fast-csv/parse'
 import deepEqual from 'deep-equal'
 import Ajv from 'ajv'
 import addFormats from 'ajv-formats'
@@ -74,6 +76,19 @@ export type Test = {
   env?: object
   steps: Step[]
   config?: TestConfig
+  testdata?: TestData
+}
+
+export type TestData = {
+  file: string
+  options?: TestDataOptions
+}
+
+export type TestDataOptions = {
+  delimiter?: string
+  quote?: string | null
+  escape?: string
+  headers?: boolean | string[]
 }
 
 export type Tests = {
@@ -379,6 +394,20 @@ function didChecksPass (stepResult: StepResult) {
   .every(passed => passed)
 }
 
+// Parse CSV
+function parseCSV (file: string, options?: csv.ParserOptionsArgs): Promise<object[]>{
+  return new Promise((resolve, reject) => {
+    const defaultOptions = {
+      headers: true
+    }
+
+    let parsedData: object[] = []
+    csv.parseFile(file, { ...defaultOptions, ...options })
+      .on('data', data => parsedData.push(data))
+      .on('end', () => resolve(parsedData))
+  })
+}
+
 // Run from YAML string
 export function runFromYAML (yamlString: string, options?: WorkflowOptions): Promise<WorkflowResult> {
   return run(yaml.load(yamlString) as Workflow, options)
@@ -394,8 +423,20 @@ export async function runFromFile (path: string, options?: WorkflowOptions): Pro
 // Run workflow
 export async function run (workflow: Workflow, options?: WorkflowOptions): Promise<WorkflowResult> {
   const timestamp = new Date()
+  const schemaValidator = new Ajv({ strictSchema: false })
+  addFormats(schemaValidator)
+
+  // Add schemas to schema Validator
+  if (workflow.components) {
+    if (workflow.components.schemas) {
+      for (const schema in workflow.components.schemas) {
+        schemaValidator.addSchema(workflow.components.schemas[schema], `#/components/schemas/${schema}`)
+      }
+    }
+  }
+
   const env = { ...workflow.env ?? {}, ...options?.env ?? {} }
-  const tests = await Promise.all(Object.values(workflow.tests).map((test, i) => runTest(Object.keys(workflow.tests)[i], test, options, workflow.config, env, workflow.components)))
+  const tests = await Promise.all(Object.values(workflow.tests).map((test, i) => runTest(Object.keys(workflow.tests)[i], test, schemaValidator, options, workflow.config, env)))
 
   const workflowResult: WorkflowResult = {
     workflow,
@@ -412,7 +453,7 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
   return workflowResult
 }
 
-async function runTest (id: string, test: Test, options?: WorkflowOptions, config?: WorkflowConfig, env?: object, components?: Workflow['components']): Promise<TestResult> {
+async function runTest (id: string, test: Test, schemaValidator: Ajv, options?: WorkflowOptions, config?: WorkflowConfig, env?: object): Promise<TestResult> {
   const testResult: TestResult = {
     id,
     name: test.name,
@@ -424,17 +465,13 @@ async function runTest (id: string, test: Test, options?: WorkflowOptions, confi
 
   const captures: CapturesStorage = {}
   const cookies = new CookieJar()
-  const schemaValidator = new Ajv({ strictSchema: false })
-  addFormats(schemaValidator)
   let previous: StepResult | undefined
+  let testData: object = {}
 
-  // Add schemas to schema Validator
-  if (components) {
-    if (components.schemas) {
-      for (const schema in components.schemas) {
-        schemaValidator.addSchema(components.schemas[schema], `#/components/schemas/${schema}`)
-      }
-    }
+  // Load test data
+  if (test.testdata) {
+    const parsedCSV = await parseCSV(test.testdata.file, test.testdata.options)
+    testData = parsedCSV[Math.floor(Math.random() * parsedCSV.length)]
   }
 
   for (let step of test.steps) {
@@ -461,11 +498,13 @@ async function runTest (id: string, test: Test, options?: WorkflowOptions, confi
         step = renderTemplate(step, {
           captures,
           env: { ...env, ...test.env },
-          secrets: options?.secrets
+          secrets: options?.secrets,
+          testdata: testData
         },
         {
           filters: {
-            fake
+            fake,
+            naughtystring
           }
         }) as Step
 

@@ -1,6 +1,6 @@
 {
   "name": "@stepci/runner",
-  "version": "1.4.8",
+  "version": "1.5.2",
   "description": "Step CI Runner",
   "main": "dist/index.js",
   "scripts": {
@@ -25,6 +25,7 @@
   },
   "homepage": "https://github.com/StepCI/runner#readme",
   "dependencies": {
+    "@fast-csv/parse": "^4.3.6",
     "ajv": "^8.11.0",
     "ajv-formats": "^2.1.1",
     "cheerio": "^1.0.0-rc.12",
@@ -37,8 +38,9 @@
     "got": "^11.8.3",
     "js-yaml": "^4.1.0",
     "jsonpath-plus": "^7.2.0",
-    "liquidless": "^1.0.8",
+    "liquidless": "^1.0.9",
     "liquidless-faker": "^1.0.1",
+    "liquidless-naughtystrings": "^1.0.0",
     "tough-cookie": "^4.1.2",
     "xmldom": "^0.6.0",
     "xpath": "^0.0.32"
