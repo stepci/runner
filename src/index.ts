@@ -21,6 +21,7 @@ import Ajv from 'ajv'
 import addFormats from 'ajv-formats'
 import { PeerCertificate, TLSSocket } from 'node:tls'
 import { Matcher, check } from './matcher'
+const { co2 } = require('@tgwf/co2')
 
 export type EnvironmentVariables = {
   [key: string]: string;
@@ -230,7 +231,8 @@ export type HTTPStepCheck = {
   md5?: string
   performance?: StepCheckPerformance | StepCheckMatcher
   ssl?: StepCheckSSL | StepCheckMatcher
-  size?: number
+  size?: number | Matcher[]
+  co2?: number | Matcher[]
 }
 
 export type gRPCStepCheck = {
@@ -239,7 +241,8 @@ export type gRPCStepCheck = {
   jsonpath?: StepCheckJSONPath | StepCheckMatcher
   captures?: StepCheckCaptures
   performance?: StepCheckPerformance | StepCheckMatcher
-  size?: number
+  size?: number | Matcher[]
+  co2?: number | Matcher[]
 }
 
 export type StepCheckValue = {
@@ -355,6 +358,7 @@ export type StepCheckResult = {
   performance?: CheckResults
   ssl?: CheckResultSSL
   size?: CheckResult
+  co2?: CheckResult
 }
 
 export type CheckResult = {
@@ -684,10 +688,10 @@ async function runTest (id: string, test: Test, schemaValidator: Ajv, options?: 
             stepResult.checks = {}
 
             // Check headers
-            if (step.http.check.headers){
+            if (step.http.check.headers) {
               stepResult.checks.headers = {}
 
-              for (const header in step.http.check.headers){
+              for (const header in step.http.check.headers) {
                 stepResult.checks.headers[header] = {
                   expected: step.http.check.headers[header],
                   given: res.headers[header.toLowerCase()],
@@ -864,10 +868,10 @@ async function runTest (id: string, test: Test, schemaValidator: Ajv, options?: 
             }
 
             // Check Performance
-            if (step.http.check.performance){
+            if (step.http.check.performance) {
               stepResult.checks.performance = {}
 
-              for (const metric in step.http.check.performance){
+              for (const metric in step.http.check.performance) {
                 stepResult.checks.performance[metric] = {
                   expected: step.http.check.performance[metric],
                   given: (res.timings.phases as any)[metric],
@@ -906,11 +910,22 @@ async function runTest (id: string, test: Test, schemaValidator: Ajv, options?: 
             }
 
             // Check byte size
-            if (step.http.check.size){
+            if (step.http.check.size) {
               stepResult.checks.size = {
                 expected: step.http.check.size,
                 given: responseData.byteLength,
                 passed: check(responseData.byteLength, step.http.check.size)
+              }
+            }
+
+            // Check co2 emissions
+            if (step.http.check.co2) {
+              const ssw = new co2()
+
+              stepResult.checks.co2 = {
+                expected: step.http.check.co2,
+                given: ssw.perByte(responseData.byteLength),
+                passed: check(ssw.perByte(responseData.byteLength), step.http.check.co2)
               }
             }
           }
@@ -1034,17 +1049,8 @@ async function runTest (id: string, test: Test, schemaValidator: Ajv, options?: 
               }
             }
 
-            // Check byte size
-            if (step.grpc.check.size){
-              stepResult.checks.size = {
-                expected: step.grpc.check.size,
-                given: size,
-                passed: check(size, step.grpc.check.size)
-              }
-            }
-
             // Check performance
-            if (step.grpc.check.performance){
+            if (step.grpc.check.performance) {
               stepResult.checks.performance = {}
 
               if (step.grpc.check.performance.total) {
@@ -1053,6 +1059,26 @@ async function runTest (id: string, test: Test, schemaValidator: Ajv, options?: 
                   given: responseDuration,
                   passed: check(responseDuration, step.grpc.check.performance.total)
                 }
+              }
+            }
+
+            // Check byte size
+            if (step.grpc.check.size) {
+              stepResult.checks.size = {
+                expected: step.grpc.check.size,
+                given: size,
+                passed: check(size, step.grpc.check.size)
+              }
+            }
+
+            // Check co2 emissions
+            if (step.grpc.check.co2) {
+              const ssw = new co2()
+
+              stepResult.checks.co2 = {
+                expected: step.grpc.check.co2,
+                given: ssw.perByte(size),
+                passed: check(ssw.perByte(size), step.grpc.check.co2)
               }
             }
           }

@@ -39,12 +39,10 @@ const workflow = {
         {
           "name": "GET request",
           "http": {
-            "url": "https://jsonplaceholder.typicode.com/posts/1",
+            "url": "https://mish.co",
             "method": "GET",
             "check": {
-              "schema": {
-                "$ref": "#/components/schemas/Post"
-              }
+              "co2": 400
             }
           }
         }
