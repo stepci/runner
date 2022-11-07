@@ -34,7 +34,7 @@ type LoadTestMetric = {
   p99: number
 }
 
-export type LoadTestChecks = {
+export type LoadTestCheck = {
   avg?: number | Matcher[],
   min?: number | Matcher[],
   max?: number | Matcher[],

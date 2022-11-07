@@ -20,7 +20,7 @@ import Ajv from 'ajv'
 import addFormats from 'ajv-formats'
 import { PeerCertificate, TLSSocket } from 'node:tls'
 import { Matcher, checkResult, CheckResult, CheckResults } from './matcher'
-import { LoadTestChecks } from './loadtesting'
+import { LoadTestCheck } from './loadtesting'
 const { co2 } = require('@tgwf/co2')
 import { Phase } from 'phasic'
 
@@ -46,7 +46,7 @@ export type WorkflowComponents = {
 export type WorkflowConfig = {
   loadTesting?: {
     phases: Phase[]
-    check?: LoadTestChecks
+    check?: LoadTestCheck
   },
   continueOnFail?: boolean,
   http?: {
