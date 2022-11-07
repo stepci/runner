@@ -1,12 +1,13 @@
 {
   "name": "@stepci/runner",
-  "version": "1.5.6",
+  "version": "1.6.0",
   "description": "Step CI Runner",
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "build:watch": "tsc -w -p tsconfig.json",
-    "test": "ts-node ./tests/test.ts"
+    "test": "ts-node ./tests/test.ts",
+    "test:loadtest": "ts-node ./tests/loadtesting.ts"
   },
   "repository": {
     "type": "git",
@@ -42,6 +43,8 @@
     "liquidless": "^1.0.9",
     "liquidless-faker": "^1.0.1",
     "liquidless-naughtystrings": "^1.0.0",
+    "phasic": "^1.0.2",
+    "simple-statistics": "^7.8.0",
     "tough-cookie": "^4.1.2",
     "xmldom": "^0.6.0",
     "xpath": "^0.0.32"

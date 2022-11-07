@@ -21,6 +21,7 @@ import addFormats from 'ajv-formats'
 import { PeerCertificate, TLSSocket } from 'node:tls'
 import { Matcher, checkResult, CheckResult, CheckResults } from './matcher'
 const { co2 } = require('@tgwf/co2')
+import { Phase } from 'phasic'
 
 export type EnvironmentVariables = {
   [key: string]: string;
@@ -42,6 +43,9 @@ export type WorkflowComponents = {
 }
 
 export type WorkflowConfig = {
+  loadTesting?: {
+    phases: Phase[]
+  },
   continueOnFail?: boolean,
   http?: {
     baseURL?: string
@@ -49,7 +53,7 @@ export type WorkflowConfig = {
   }
 }
 
-type WorkflowOptions = {
+export type WorkflowOptions = {
   path?: string
   secrets?: WorkflowOptionsSecrets
   ee?: EventEmitter
@@ -67,6 +71,7 @@ export type WorkflowResult = {
     passed: boolean
     timestamp: Date
     duration: number
+    responseTime: number
     co2: number
   }
   path?: string
@@ -266,6 +271,7 @@ export type TestResult = {
   passed: boolean
   timestamp: Date
   duration: number
+  responseTime: number
   co2: number
 }
 
@@ -281,6 +287,7 @@ export type StepResult = {
   skipped: boolean
   timestamp: Date
   duration: number
+  responseTime: number
   co2: number
   request?: HTTPStepRequest | gRPCStepRequest
   response?: HTTPStepResponse | gRPCStepResponse
@@ -411,15 +418,16 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
   }
 
   const env = { ...workflow.env ?? {}, ...options?.env ?? {} }
-  const tests = await Promise.all(Object.values(workflow.tests).map((test, i) => runTest(Object.keys(workflow.tests)[i], test, schemaValidator, options, workflow.config, env)))
+  const tests = await Promise.all(Object.entries(workflow.tests).map(([id, test]) => runTest(id, test, schemaValidator, options, workflow.config, env)))
 
   const workflowResult: WorkflowResult = {
     workflow,
     result: {
       tests,
-      passed: tests.every(test => test.passed),
       timestamp,
+      passed: tests.every(test => test.passed),
       duration: Date.now() - timestamp.valueOf(),
+      responseTime: tests.map(test => test.responseTime).reduce((a, b) => a + b),
       co2: tests.map(test => test.co2).reduce((a, b) => a + b)
     },
     path: options?.path
@@ -437,6 +445,7 @@ async function runTest (id: string, test: Test, schemaValidator: Ajv, options?: 
     passed: true,
     timestamp: new Date(),
     duration: 0,
+    responseTime: 0,
     co2: 0
   }
 
@@ -462,6 +471,7 @@ async function runTest (id: string, test: Test, schemaValidator: Ajv, options?: 
       errored: false,
       skipped: false,
       duration: 0,
+      responseTime: 0,
       co2: 0
     }
 
@@ -916,7 +926,6 @@ async function runTest (id: string, test: Test, schemaValidator: Ajv, options?: 
 
               for (const path in step.grpc.check.jsonpath) {
                 const result = JSONPath({ path, json: data })
-
                 stepResult.checks.jsonpath[path] = checkResult(result[0], step.grpc.check.jsonpath[path])
               }
             }
@@ -962,6 +971,7 @@ async function runTest (id: string, test: Test, schemaValidator: Ajv, options?: 
     }
 
     stepResult.duration = Date.now() - stepResult.timestamp.valueOf()
+    stepResult.responseTime = stepResult.response?.duration || 0
     stepResult.co2 = stepResult.response?.co2 || 0
     testResult.steps.push(stepResult)
     previous = stepResult
@@ -970,6 +980,7 @@ async function runTest (id: string, test: Test, schemaValidator: Ajv, options?: 
   }
 
   testResult.duration = testResult.steps.map(step => step.duration).reduce((a, b) => a + b)
+  testResult.responseTime = testResult.steps.map(step => step.responseTime).reduce((a, b) => a + b)
   testResult.co2 = testResult.steps.map(step => step.co2).reduce((a, b) => a + b)
   testResult.passed = testResult.steps.every(step => step.passed)
 
