@@ -12,10 +12,10 @@ import { DOMParser } from 'xmldom'
 import { compileExpression } from 'filtrex'
 import flatten from 'flat'
 import { EventEmitter } from 'node:events'
+import { parseCSV, TestData } from './utils'
 import crypto from 'crypto'
 import fs from 'fs'
 import yaml from 'js-yaml'
-import * as csv from '@fast-csv/parse'
 import Ajv from 'ajv'
 import addFormats from 'ajv-formats'
 import { PeerCertificate, TLSSocket } from 'node:tls'
@@ -78,18 +78,6 @@ export type Test = {
   steps: Step[]
   config?: TestConfig
   testdata?: TestData
-}
-
-export type TestData = {
-  file: string
-  options?: TestDataOptions
-}
-
-export type TestDataOptions = {
-  delimiter?: string
-  quote?: string | null
-  escape?: string
-  headers?: boolean | string[]
 }
 
 export type Tests = {
@@ -224,7 +212,7 @@ export type HTTPStepCheck = {
   schema?: object
   jsonpath?: StepCheckJSONPath | StepCheckMatcher
   xpath?: StepCheckValue | StepCheckMatcher
-  selector?: StepCheckValue | StepCheckMatcher
+  selectors?: StepCheckValue | StepCheckMatcher
   cookies?: StepCheckValue | StepCheckMatcher
   captures?: StepCheckCaptures
   sha256?: string
@@ -356,7 +344,7 @@ export type StepCheckResult = {
   schema?: CheckResult
   jsonpath?: CheckResults
   xpath?: CheckResults
-  selector?: CheckResults
+  selectors?: CheckResults
   cookies?: CheckResults
   captures?: CheckResults
   status?: CheckResult
@@ -397,20 +385,6 @@ function didChecksPass (stepResult: StepResult) {
   .every(passed => passed)
 }
 
-// Parse CSV
-function parseCSV (file: string, options?: csv.ParserOptionsArgs): Promise<object[]>{
-  return new Promise((resolve, reject) => {
-    const defaultOptions = {
-      headers: true
-    }
-
-    let parsedData: object[] = []
-    csv.parseFile(file, { ...defaultOptions, ...options })
-      .on('data', data => parsedData.push(data))
-      .on('end', () => resolve(parsedData))
-  })
-}
-
 // Run from YAML string
 export function runFromYAML (yamlString: string, options?: WorkflowOptions): Promise<WorkflowResult> {
   return run(yaml.load(yamlString) as Workflow, options)
@@ -430,11 +404,9 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
   addFormats(schemaValidator)
 
   // Add schemas to schema Validator
-  if (workflow.components) {
-    if (workflow.components.schemas) {
-      for (const schema in workflow.components.schemas) {
-        schemaValidator.addSchema(workflow.components.schemas[schema], `#/components/schemas/${schema}`)
-      }
+  if (workflow.components && workflow.components.schemas) {
+    for (const schema in workflow.components.schemas) {
+      schemaValidator.addSchema(workflow.components.schemas[schema], `#/components/schemas/${schema}`)
     }
   }
 
@@ -476,7 +448,7 @@ async function runTest (id: string, test: Test, schemaValidator: Ajv, options?: 
 
   // Load test data
   if (test.testdata) {
-    const parsedCSV = await parseCSV(test.testdata.file, test.testdata.options)
+    const parsedCSV = await parseCSV(test.testdata, test.testdata.options)
     testData = parsedCSV[Math.floor(Math.random() * parsedCSV.length)]
   }
 
@@ -749,14 +721,14 @@ async function runTest (id: string, test: Test, schemaValidator: Ajv, options?: 
               }
             }
 
-            // Check HTML5 Selector
-            if (step.http.check.selector) {
-              stepResult.checks.selector = {}
+            // Check HTML5 Selectors
+            if (step.http.check.selectors) {
+              stepResult.checks.selectors = {}
               const dom = cheerio.load(body)
 
-              for (const selector in step.http.check.selector) {
+              for (const selector in step.http.check.selectors) {
                 const result = dom(selector).html()
-                stepResult.checks.selector[selector] = checkResult(result, step.http.check.selector[selector])
+                stepResult.checks.selectors[selector] = checkResult(result, step.http.check.selectors[selector])
               }
             }
 

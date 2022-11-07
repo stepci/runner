@@ -33,16 +33,22 @@ const workflow = {
   tests: {
     "example": {
       "testdata": {
-        "file": "tests/testdata.csv",
+        "content": "username,password\nmish,ushakov\nushakov,mish"
       },
       "steps": [
         {
           "name": "GET request",
           "http": {
-            "url": "https://mish.co",
+            "url": "https://httpbin.org/basic-auth/{{testdata.username}}/{{testdata.password}}",
             "method": "GET",
+            "auth": {
+              "basic": {
+                "username": "{{ testdata.username }}",
+                "password": "{{ testdata.password }}"
+              }
+            },
             "check": {
-              "co2": 400
+              "status": 200
             }
           }
         }
