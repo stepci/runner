@@ -7,13 +7,45 @@ const workflow = {
   config: {
     loadTesting: {
       phases: [{
-        duration: 10,
-        arrivalRate: 10
-      }]
+        duration: 2,
+        arrivalRate: 1
+      }],
+      check: {
+        p99: [{
+          lte: 500
+        }],
+        p95: [{
+          lte: 500
+        }]
+      }
     }
   },
   tests: {
     example: {
+      steps: [
+        {
+          "name": "GET request",
+          "http": {
+            "url": "https://example.com",
+            "method": "GET",
+            "check": {
+              "status": 200
+            }
+          }
+        },
+        {
+          "name": "GET request",
+          "http": {
+            "url": "https://example.com",
+            "method": "GET",
+            "check": {
+              "status": 300
+            }
+          }
+        },
+      ]
+    },
+    example2: {
       steps: [
         {
           "name": "GET request",
@@ -30,4 +62,4 @@ const workflow = {
   }
 }
 
-loadTest(workflow).then(console.log)
+loadTest(workflow).then(({ result }) => console.log(result))

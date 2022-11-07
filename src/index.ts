@@ -20,6 +20,7 @@ import Ajv from 'ajv'
 import addFormats from 'ajv-formats'
 import { PeerCertificate, TLSSocket } from 'node:tls'
 import { Matcher, checkResult, CheckResult, CheckResults } from './matcher'
+import { LoadTestChecks } from './loadtesting'
 const { co2 } = require('@tgwf/co2')
 import { Phase } from 'phasic'
 
@@ -45,6 +46,7 @@ export type WorkflowComponents = {
 export type WorkflowConfig = {
   loadTesting?: {
     phases: Phase[]
+    check?: LoadTestChecks
   },
   continueOnFail?: boolean,
   http?: {
@@ -71,7 +73,6 @@ export type WorkflowResult = {
     passed: boolean
     timestamp: Date
     duration: number
-    responseTime: number
     co2: number
   }
   path?: string
@@ -271,7 +272,6 @@ export type TestResult = {
   passed: boolean
   timestamp: Date
   duration: number
-  responseTime: number
   co2: number
 }
 
@@ -427,7 +427,6 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
       timestamp,
       passed: tests.every(test => test.passed),
       duration: Date.now() - timestamp.valueOf(),
-      responseTime: tests.map(test => test.responseTime).reduce((a, b) => a + b),
       co2: tests.map(test => test.co2).reduce((a, b) => a + b)
     },
     path: options?.path
@@ -445,7 +444,6 @@ async function runTest (id: string, test: Test, schemaValidator: Ajv, options?: 
     passed: true,
     timestamp: new Date(),
     duration: 0,
-    responseTime: 0,
     co2: 0
   }
 
@@ -979,8 +977,7 @@ async function runTest (id: string, test: Test, schemaValidator: Ajv, options?: 
     options?.ee?.emit('step:result', stepResult)
   }
 
-  testResult.duration = testResult.steps.map(step => step.duration).reduce((a, b) => a + b)
-  testResult.responseTime = testResult.steps.map(step => step.responseTime).reduce((a, b) => a + b)
+  testResult.duration = Date.now() - testResult.timestamp.valueOf()
   testResult.co2 = testResult.steps.map(step => step.co2).reduce((a, b) => a + b)
   testResult.passed = testResult.steps.every(step => step.passed)
 
