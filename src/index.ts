@@ -1,5 +1,5 @@
 import got, { Method, Headers } from 'got'
-import { gRPCResponse, makeRequest, gRPCRequestMetadata } from 'cool-grpc'
+import { makeRequest, gRPCRequestMetadata } from 'cool-grpc'
 import { CookieJar } from 'tough-cookie'
 import { renderTemplate } from 'liquidless'
 import { fake } from 'liquidless-faker'
@@ -16,11 +16,10 @@ import crypto from 'crypto'
 import fs from 'fs'
 import yaml from 'js-yaml'
 import * as csv from '@fast-csv/parse'
-import deepEqual from 'deep-equal'
 import Ajv from 'ajv'
 import addFormats from 'ajv-formats'
 import { PeerCertificate, TLSSocket } from 'node:tls'
-import { Matcher, check } from './matcher'
+import { Matcher, checkResult, CheckResult, CheckResults } from './matcher'
 const { co2 } = require('@tgwf/co2')
 
 export type EnvironmentVariables = {
@@ -371,16 +370,6 @@ export type StepCheckResult = {
   co2?: CheckResult
 }
 
-export type CheckResult = {
-  expected: any
-  given: any
-  passed: boolean
-}
-
-export type CheckResults = {
-  [key: string]: CheckResult
-}
-
 export type CheckResultSSL = {
   valid?: CheckResult
   signed?: CheckResult
@@ -707,31 +696,19 @@ async function runTest (id: string, test: Test, schemaValidator: Ajv, options?: 
               stepResult.checks.headers = {}
 
               for (const header in step.http.check.headers) {
-                stepResult.checks.headers[header] = {
-                  expected: step.http.check.headers[header],
-                  given: res.headers[header.toLowerCase()],
-                  passed: check(res.headers[header.toLowerCase()], step.http.check.headers[header])
-                }
+                stepResult.checks.headers[header] = checkResult(res.headers[header.toLowerCase()], step.http.check.headers[header])
               }
             }
 
             // Check body
             if (step.http.check.body) {
-              stepResult.checks.body = {
-                expected: step.http.check.body,
-                given: body.trim(),
-                passed: check(body.trim(), step.http.check.body)
-              }
+              stepResult.checks.body = checkResult(body.trim(), step.http.check.body)
             }
 
             // Check JSON
             if (step.http.check.json) {
               const json = JSON.parse(body)
-              stepResult.checks.json = {
-                expected: step.http.check.json,
-                given: json,
-                passed: deepEqual(json, step.http.check.json)
-              }
+              stepResult.checks.json = checkResult(json, step.http.check.json)
             }
 
             // Check Schema
@@ -757,12 +734,7 @@ async function runTest (id: string, test: Test, schemaValidator: Ajv, options?: 
 
               for (const path in step.http.check.jsonpath) {
                 const result = JSONPath({ path, json })
-
-                stepResult.checks.jsonpath[path] = {
-                  expected: step.http.check.jsonpath[path],
-                  given: result[0],
-                  passed: check(result[0], step.http.check.jsonpath[path])
-                }
+                stepResult.checks.jsonpath[path] = checkResult(result[0], step.http.check.jsonpath[path])
               }
             }
 
@@ -773,12 +745,7 @@ async function runTest (id: string, test: Test, schemaValidator: Ajv, options?: 
               for (const path in step.http.check.xpath) {
                 const dom = new DOMParser().parseFromString(body)
                 const result = xpath.select(path, dom)
-
-                stepResult.checks.xpath[path] = {
-                  expected: step.http.check.xpath[path],
-                  given: result.length > 0 ? (result[0] as any).firstChild.data : undefined,
-                  passed: check(result.length > 0 ? (result[0] as any).firstChild.data : undefined, step.http.check.xpath[path])
-                }
+                stepResult.checks.xpath[path] = checkResult(result.length > 0 ? (result[0] as any).firstChild.data : undefined, step.http.check.xpath[path])
               }
             }
 
@@ -789,12 +756,7 @@ async function runTest (id: string, test: Test, schemaValidator: Ajv, options?: 
 
               for (const selector in step.http.check.selector) {
                 const result = dom(selector).html()
-
-                stepResult.checks.selector[selector] = {
-                  expected: step.http.check.selector[selector],
-                  given: result,
-                  passed: check(result, step.http.check.selector[selector])
-                }
+                stepResult.checks.selector[selector] = checkResult(result, step.http.check.selector[selector])
               }
             }
 
@@ -804,12 +766,7 @@ async function runTest (id: string, test: Test, schemaValidator: Ajv, options?: 
 
               for (const cookie in step.http.check.cookies) {
                 const value = getCookie(cookies, cookie, res.url)
-
-                stepResult.checks.cookies[cookie] = {
-                  expected: step.http.check.cookies[cookie],
-                  given: value,
-                  passed: check(value, step.http.check.cookies[cookie])
-                }
+                stepResult.checks.cookies[cookie] = checkResult(value, step.http.check.cookies[cookie])
               }
             }
 
@@ -818,68 +775,40 @@ async function runTest (id: string, test: Test, schemaValidator: Ajv, options?: 
               stepResult.checks.captures = {}
 
               for (const capture in step.http.check.captures) {
-                stepResult.checks.captures[capture] = {
-                  expected: step.http.check.captures[capture],
-                  given: captures[capture],
-                  passed: check(captures[capture], step.http.check.captures[capture])
-                }
+                stepResult.checks.captures[capture] = checkResult(captures[capture], step.http.check.captures[capture])
               }
             }
 
             // Check status
             if (step.http.check.status) {
-              stepResult.checks.status = {
-                expected: step.http.check.status,
-                given: res.statusCode,
-                passed: check(res.statusCode, step.http.check.status)
-              }
+              stepResult.checks.status = checkResult(res.statusCode, step.http.check.status)
             }
 
             // Check statusText
             if (step.http.check.statusText) {
-              stepResult.checks.statusText = {
-                expected: step.http.check.statusText,
-                given: res.statusMessage,
-                passed: check(res.statusMessage, step.http.check.statusText)
-              }
+              stepResult.checks.statusText = checkResult(res.statusMessage, step.http.check.statusText)
             }
 
             // Check whether request was redirected
             if ('redirected' in step.http.check) {
-              stepResult.checks.redirected = {
-                expected: step.http.check.redirected,
-                given: res.redirectUrls.length > 0,
-                passed: res.redirectUrls.length > 0 === step.http.check.redirected
-              }
+              stepResult.checks.redirected = checkResult(res.redirectUrls.length > 0, step.http.check.redirected)
             }
 
             // Check redirects
             if (step.http.check.redirects) {
-              stepResult.checks.redirects = {
-                expected: step.http.check.redirects,
-                given: res.redirectUrls,
-                passed: deepEqual(res.redirectUrls, step.http.check.redirects)
-              }
+              stepResult.checks.redirects = checkResult(res.redirectUrls, step.http.check.redirects)
             }
 
             // Check sha256
             if (step.http.check.sha256) {
               const hash = crypto.createHash('sha256').update(Buffer.from(responseData)).digest('hex')
-              stepResult.checks.sha256 = {
-                expected: step.http.check.sha256,
-                given: hash,
-                passed: step.http.check.sha256 === hash
-              }
+              stepResult.checks.sha256 = checkResult(hash, step.http.check.sha256)
             }
 
             // Check md5
             if (step.http.check.md5) {
               const hash = crypto.createHash('md5').update(Buffer.from(responseData)).digest('hex')
-              stepResult.checks.md5 = {
-                expected: step.http.check.md5,
-                given: hash,
-                passed: step.http.check.md5 === hash
-              }
+              stepResult.checks.md5 = checkResult(hash, step.http.check.md5)
             }
 
             // Check Performance
@@ -887,11 +816,7 @@ async function runTest (id: string, test: Test, schemaValidator: Ajv, options?: 
               stepResult.checks.performance = {}
 
               for (const metric in step.http.check.performance) {
-                stepResult.checks.performance[metric] = {
-                  expected: step.http.check.performance[metric],
-                  given: (res.timings.phases as any)[metric],
-                  passed: check((res.timings.phases as any)[metric], step.http.check.performance[metric])
-                }
+                stepResult.checks.performance[metric] = checkResult((res.timings.phases as any)[metric], step.http.check.performance[metric])
               }
             }
 
@@ -900,46 +825,26 @@ async function runTest (id: string, test: Test, schemaValidator: Ajv, options?: 
               stepResult.checks.ssl = {}
 
               if ('valid' in step.http.check.ssl) {
-                stepResult.checks.ssl.valid = {
-                  expected: step.http.check.ssl.valid,
-                  given: stepResult.response.ssl?.valid,
-                  passed: stepResult.response.ssl?.valid === step.http.check.ssl.valid
-                }
+                stepResult.checks.ssl.valid = checkResult(stepResult.response.ssl?.valid, step.http.check.ssl)
               }
 
               if ('signed' in step.http.check.ssl) {
-                stepResult.checks.ssl.signed = {
-                  expected: step.http.check.ssl.signed,
-                  given: stepResult.response.ssl?.signed,
-                  passed: stepResult.response.ssl?.signed === step.http.check.ssl.signed
-                }
+                stepResult.checks.ssl.signed = checkResult(stepResult.response.ssl?.signed, step.http.check.ssl.signed)
               }
 
               if (step.http.check.ssl.daysUntilExpiration) {
-                stepResult.checks.ssl.daysUntilExpiration = {
-                  expected: step.http.check.ssl.daysUntilExpiration,
-                  given: stepResult.response.ssl?.daysUntilExpiration,
-                  passed: check(stepResult.response.ssl?.daysUntilExpiration, step.http.check.ssl.daysUntilExpiration)
-                }
+                stepResult.checks.ssl.daysUntilExpiration = checkResult(stepResult.response.ssl?.daysUntilExpiration, step.http.check.ssl.daysUntilExpiration)
               }
             }
 
             // Check byte size
             if (step.http.check.size) {
-              stepResult.checks.size = {
-                expected: step.http.check.size,
-                given: responseData.byteLength,
-                passed: check(responseData.byteLength, step.http.check.size)
-              }
+              stepResult.checks.size = checkResult(responseData.byteLength, step.http.check.size)
             }
 
             // Check co2 emissions
             if (step.http.check.co2) {
-              stepResult.checks.co2 = {
-                expected: step.http.check.co2,
-                given: stepResult.response.co2,
-                passed: check(stepResult.response.co2, step.http.check.co2)
-              }
+              stepResult.checks.co2 = checkResult(stepResult.response.co2, step.http.check.co2)
             }
           }
         }
@@ -1020,11 +925,7 @@ async function runTest (id: string, test: Test, schemaValidator: Ajv, options?: 
 
             // Check JSON
             if (step.grpc.check.json) {
-              stepResult.checks.json = {
-                expected: step.grpc.check.json,
-                given: data,
-                passed: deepEqual(data, step.grpc.check.json)
-              }
+              stepResult.checks.json = checkResult(data, step.grpc.check.json)
             }
 
             // Check Schema
@@ -1044,11 +945,7 @@ async function runTest (id: string, test: Test, schemaValidator: Ajv, options?: 
               for (const path in step.grpc.check.jsonpath) {
                 const result = JSONPath({ path, json: data })
 
-                stepResult.checks.jsonpath[path] = {
-                  expected: step.grpc.check.jsonpath[path],
-                  given: result[0],
-                  passed: check(result[0], step.grpc.check.jsonpath[path])
-                }
+                stepResult.checks.jsonpath[path] = checkResult(result[0], step.grpc.check.jsonpath[path])
               }
             }
 
@@ -1057,11 +954,7 @@ async function runTest (id: string, test: Test, schemaValidator: Ajv, options?: 
               stepResult.checks.captures = {}
 
               for (const capture in step.grpc.check.captures) {
-                stepResult.checks.captures[capture] = {
-                  expected: step.grpc.check.captures[capture],
-                  given: captures[capture],
-                  passed: check(captures[capture], step.grpc.check.captures[capture])
-                }
+                stepResult.checks.captures[capture] = checkResult(captures[capture], step.grpc.check.captures[capture])
               }
             }
 
@@ -1070,30 +963,19 @@ async function runTest (id: string, test: Test, schemaValidator: Ajv, options?: 
               stepResult.checks.performance = {}
 
               if (step.grpc.check.performance.total) {
-                stepResult.checks.performance.total = {
-                  expected: step.grpc.check.performance.total,
-                  given: stepResult.response?.duration,
-                  passed: check(stepResult.response?.duration, step.grpc.check.performance.total)
-                }
+                stepResult.checks.performance.total = checkResult(stepResult.response?.duration, step.grpc.check.performance.total)
               }
             }
 
             // Check byte size
             if (step.grpc.check.size) {
-              stepResult.checks.size = {
-                expected: step.grpc.check.size,
-                given: size,
-                passed: check(size, step.grpc.check.size)
-              }
+              stepResult.checks.size = checkResult(size, step.grpc.check.size)
+
             }
 
             // Check co2 emissions
             if (step.grpc.check.co2) {
-              stepResult.checks.co2 = {
-                expected: step.grpc.check.co2,
-                given: stepResult.response?.co2,
-                passed: check(stepResult.response?.co2, step.grpc.check.co2)
-              }
+              stepResult.checks.co2 = checkResult(stepResult.response?.co2, step.grpc.check.co2)
             }
           }
         }

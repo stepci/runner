@@ -19,7 +19,25 @@ export type Matcher = {
   isArray?: boolean
 }
 
-export function check (given: any, expected: Matcher[] | any) : boolean {
+export type CheckResult = {
+  expected: any
+  given: any
+  passed: boolean
+}
+
+export type CheckResults = {
+  [key: string]: CheckResult
+}
+
+export function checkResult (given: any, expected: Matcher[] | any) : CheckResult {
+  return {
+    expected,
+    given,
+    passed: check(given, expected)
+  }
+}
+
+function check (given: any, expected: Matcher[] | any) : boolean {
   if (typeof expected === 'object') {
     return expected.map((test: Matcher) => {
       if (test.eq) return deepEqual(given, test.eq)
