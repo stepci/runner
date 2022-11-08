@@ -65,7 +65,7 @@ function metricsResult (numbers: number[]): LoadTestMetric {
 
 // Load-testing functionality
 export async function loadTest (workflow: Workflow, options?: WorkflowOptions): Promise<LoadTestResult> {
-  if (!workflow.config?.loadTesting) throw Error('No load test config detected')
+  if (!workflow.config?.loadTesting?.phases) throw Error('No load test config detected')
 
   const start = new Date()
   const resultList = await runPhases<WorkflowResult>(workflow.config?.loadTesting?.phases as Phase[], () => run(workflow, options))
@@ -112,7 +112,7 @@ export async function loadTest (workflow: Workflow, options?: WorkflowOptions): 
     }
   }
 
-  return {
+  const result: LoadTestResult = {
     workflow,
     result: {
       stats: {
@@ -133,4 +133,7 @@ export async function loadTest (workflow: Workflow, options?: WorkflowOptions): 
       passed: Object.entries(checks as object).map(([k, v]) => v.passed).every(passed => passed)
     }
   }
+
+  options?.ee?.emit('loadtest:result', result)
+  return result
 }

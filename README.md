@@ -29,7 +29,7 @@ const workflow = {
   env: {
     host: "example.com"
   },
-  flows: {
+  tests: {
     example: {
       steps: [{
         name: "GET request",
@@ -60,6 +60,7 @@ If you supply an `EventEmitter` as argument, you can subscribe to following even
 - `step:error`, when step errors
 - `test:result`, when test finishes
 - `workflow:result`, when workflow finishes
+- `loadtest:result`, when loadtest finishes
 
 **Example: Events**
 
@@ -74,7 +75,7 @@ const workflow = {
   env: {
     host: "example.com"
   },
-  flows: {
+  tests: {
     example: {
       steps: [{
         name: "GET request",
