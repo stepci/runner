@@ -474,7 +474,7 @@ async function runTest (id: string, test: Test, schemaValidator: Ajv, options?: 
     }
 
     // Skip current step is the previous one failed or condition was unmet
-    if ((!test.config?.continueOnFail || !config?.continueOnFail) && (previous && !previous.passed)) {
+    if ((test.config?.continueOnFail === false || config?.continueOnFail === false) && (previous && !previous.passed)) {
       stepResult.passed = false
       stepResult.errorMessage = 'Step was skipped because previous one failed'
       stepResult.skipped = true
