@@ -32,7 +32,8 @@ export type Workflow = {
   version: string
   name: string
   env?: EnvironmentVariables
-  tests: Tests
+  tests?: Tests
+  testsFrom?: string[]
   components?: WorkflowComponents
   config?: WorkflowConfig
 }
@@ -418,16 +419,25 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
   }
 
   const env = { ...workflow.env ?? {}, ...options?.env ?? {} }
-  const tests = await Promise.all(Object.entries(workflow.tests).map(([id, test]) => runTest(id, test, schemaValidator, options, workflow.config, env)))
+  let tests = { ...workflow.tests ?? {} }
 
+  if (workflow.testsFrom) {
+    for (const path of workflow.testsFrom) {
+      const testFile = await fs.promises.readFile(path)
+      const test = yaml.load(testFile.toString()) as Workflow
+      tests = { ...tests, ...test.tests }
+    }
+  }
+
+  const testResults = await Promise.all(Object.entries(tests).map(([id, test]) => runTest(id, test, schemaValidator, options, workflow.config, env)))
   const workflowResult: WorkflowResult = {
     workflow,
     result: {
-      tests,
+      tests: testResults,
       timestamp,
-      passed: tests.every(test => test.passed),
+      passed: testResults.every(test => test.passed),
       duration: Date.now() - timestamp.valueOf(),
-      co2: tests.map(test => test.co2).reduce((a, b) => a + b)
+      co2: testResults.map(test => test.co2).reduce((a, b) => a + b)
     },
     path: options?.path
   }

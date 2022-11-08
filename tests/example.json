@@ -1,0 +1,18 @@
+{
+  "tests": {
+    "example": {
+      "steps": [
+        {
+          "name": "GET request",
+          "http": {
+            "url": "https://example.com",
+            "method": "GET",
+            "check": {
+              "status": 200
+            }
+          }
+        }
+      ]
+    }
+  }
+}

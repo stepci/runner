@@ -8,22 +8,7 @@ const workflow = {
   env: {
     host: "example.com"
   },
-  tests: {
-    "example": {
-      "steps": [
-        {
-          "name": "GET request",
-          "http": {
-            "url": "https://example.com",
-            "method": "GET",
-            "check": {
-              "status": 200
-            }
-          }
-        }
-      ]
-    }
-  }
+  testsFrom: [__dirname + '/example.json']
 }
 
 const ee = new EventEmitter()
