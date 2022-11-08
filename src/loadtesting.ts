@@ -1,5 +1,6 @@
 import yaml from 'js-yaml'
 import { runPhases, Phase } from 'phasic'
+import fs from 'fs'
 import { quantile, mean, min, max, median } from 'simple-statistics'
 import { run, Workflow, WorkflowOptions, WorkflowResult, TestResult } from './index'
 import { Matcher, CheckResult, checkResult } from './matcher'
@@ -64,16 +65,18 @@ function metricsResult (numbers: number[]): LoadTestMetric {
   }
 }
 
-export function loadTestFromFile (yamlString: string, options?: WorkflowOptions): Promise<LoadTestResult> {
-  return loadTest(yaml.load(yamlString) as Workflow, options)
+export async function loadTestFromFile (path: string, options?: WorkflowOptions): Promise<LoadTestResult> {
+  const testFile = await fs.promises.readFile(path)
+  const config = yaml.load(testFile.toString()) as Workflow
+  return loadTest(config, { ...options, path })
 }
 
 // Load-testing functionality
 export async function loadTest (workflow: Workflow, options?: WorkflowOptions): Promise<LoadTestResult> {
-  if (!workflow.config?.loadTesting?.phases) throw Error('No load test config detected')
+  if (!workflow.config?.loadTest?.phases) throw Error('No load test config detected')
 
   const start = new Date()
-  const resultList = await runPhases<WorkflowResult>(workflow.config?.loadTesting?.phases as Phase[], () => run(workflow, options))
+  const resultList = await runPhases<WorkflowResult>(workflow.config?.loadTest?.phases as Phase[], () => run(workflow, options))
   const results = resultList.map(result => (result as PromiseFulfilledResult<WorkflowResult>).value.result)
 
   // Tests metrics
@@ -89,31 +92,31 @@ export async function loadTest (workflow: Workflow, options?: WorkflowOptions): 
 
   // Checks
   let checks: LoadTestChecksResult | undefined
-  if (workflow.config?.loadTesting?.check) {
+  if (workflow.config?.loadTest?.check) {
     checks = {}
 
-    if (workflow.config?.loadTesting?.check.avg) {
-      checks.avg = checkResult(responseTime.avg, workflow.config?.loadTesting?.check.avg)
+    if (workflow.config?.loadTest?.check.avg) {
+      checks.avg = checkResult(responseTime.avg, workflow.config?.loadTest?.check.avg)
     }
 
-    if (workflow.config?.loadTesting?.check.min) {
-      checks.min = checkResult(responseTime.min, workflow.config?.loadTesting?.check.min)
+    if (workflow.config?.loadTest?.check.min) {
+      checks.min = checkResult(responseTime.min, workflow.config?.loadTest?.check.min)
     }
 
-    if (workflow.config?.loadTesting?.check.max) {
-      checks.max = checkResult(responseTime.max, workflow.config?.loadTesting?.check.max)
+    if (workflow.config?.loadTest?.check.max) {
+      checks.max = checkResult(responseTime.max, workflow.config?.loadTest?.check.max)
     }
 
-    if (workflow.config?.loadTesting?.check.med) {
-      checks.med = checkResult(responseTime.med, workflow.config?.loadTesting?.check.med)
+    if (workflow.config?.loadTest?.check.med) {
+      checks.med = checkResult(responseTime.med, workflow.config?.loadTest?.check.med)
     }
 
-    if (workflow.config?.loadTesting?.check.p95) {
-      checks.p95 = checkResult(responseTime.p95, workflow.config?.loadTesting?.check.p95)
+    if (workflow.config?.loadTest?.check.p95) {
+      checks.p95 = checkResult(responseTime.p95, workflow.config?.loadTest?.check.p95)
     }
 
-    if (workflow.config?.loadTesting?.check.p99) {
-      checks.p99 = checkResult(responseTime.p99, workflow.config?.loadTesting?.check.p99)
+    if (workflow.config?.loadTest?.check.p99) {
+      checks.p99 = checkResult(responseTime.p99, workflow.config?.loadTest?.check.p99)
     }
   }
 

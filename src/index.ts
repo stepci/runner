@@ -45,7 +45,7 @@ export type WorkflowComponents = {
 }
 
 export type WorkflowConfig = {
-  loadTesting?: {
+  loadTest?: {
     phases: Phase[]
     check?: LoadTestCheck
   },

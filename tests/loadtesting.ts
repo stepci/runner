@@ -5,7 +5,7 @@ const workflow = {
   version: "1.1",
   name: "Status Test",
   config: {
-    loadTesting: {
+    loadTest: {
       phases: [{
         duration: 2,
         arrivalRate: 1
