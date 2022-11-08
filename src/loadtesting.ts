@@ -1,6 +1,7 @@
-import { run, Workflow, WorkflowOptions, WorkflowResult, TestResult } from './index'
+import yaml from 'js-yaml'
 import { runPhases, Phase } from 'phasic'
 import { quantile, mean, min, max, median } from 'simple-statistics'
+import { run, Workflow, WorkflowOptions, WorkflowResult, TestResult } from './index'
 import { Matcher, CheckResult, checkResult } from './matcher'
 
 export type LoadTestResult = {
@@ -61,6 +62,10 @@ function metricsResult (numbers: number[]): LoadTestMetric {
     p95: quantile(numbers, 0.95),
     p99: quantile(numbers, 0.99),
   }
+}
+
+export function loadTestFromFile (yamlString: string, options?: WorkflowOptions): Promise<LoadTestResult> {
+  return loadTest(yaml.load(yamlString) as Workflow, options)
 }
 
 // Load-testing functionality
