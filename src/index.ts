@@ -19,6 +19,7 @@ import yaml from 'js-yaml'
 import Ajv from 'ajv'
 import addFormats from 'ajv-formats'
 import { PeerCertificate, TLSSocket } from 'node:tls'
+import path from 'node:path'
 import { Matcher, checkResult, CheckResult, CheckResults } from './matcher'
 import { LoadTestCheck } from './loadtesting'
 const { co2 } = require('@tgwf/co2')
@@ -422,8 +423,8 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
   let tests = { ...workflow.tests ?? {} }
 
   if (workflow.testsFrom) {
-    for (const path of workflow.testsFrom) {
-      const testFile = await fs.promises.readFile(path)
+    for (const workflowPath of workflow.testsFrom) {
+      const testFile = await fs.promises.readFile(path.join(__dirname, workflowPath))
       const test = yaml.load(testFile.toString()) as Workflow
       tests = { ...tests, ...test.tests }
     }

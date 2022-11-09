@@ -8,7 +8,7 @@ const workflow = {
   env: {
     host: "example.com"
   },
-  testsFrom: [__dirname + '/example.json']
+  testsFrom: ['../tests/example.json']
 }
 
 const ee = new EventEmitter()
