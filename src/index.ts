@@ -424,7 +424,7 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
 
   if (workflow.testsFrom) {
     for (const workflowPath of workflow.testsFrom) {
-      const testFile = await fs.promises.readFile(path.join(path.dirname(__dirname), workflowPath))
+      const testFile = await fs.promises.readFile(path.join(path.dirname(options?.path || __dirname), workflowPath))
       const test = yaml.load(testFile.toString()) as Workflow
       tests = { ...tests, ...test.tests }
     }
