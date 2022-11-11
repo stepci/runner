@@ -11,10 +11,13 @@ export type LoadTestResult = {
     stats: {
       tests: {
         passed: number,
+        failed: number
         total: number
       },
       steps: {
         passed: number,
+        failed: number,
+        skipped: number,
         total: number
       }
     }
@@ -28,27 +31,27 @@ export type LoadTestResult = {
 }
 
 type LoadTestMetric = {
-  avg: number,
   min: number,
   max: number,
+  avg: number,
   med: number,
   p95: number,
   p99: number
 }
 
 export type LoadTestCheck = {
-  avg?: number | Matcher[],
   min?: number | Matcher[],
   max?: number | Matcher[],
+  avg?: number | Matcher[],
   med?: number | Matcher[],
   p95?: number | Matcher[],
   p99?: number | Matcher[],
 }
 
 type LoadTestChecksResult = {
-  avg?: CheckResult,
   min?: CheckResult,
   max?: CheckResult,
+  avg?: CheckResult,
   med?: CheckResult,
   p95?: CheckResult,
   p99?: CheckResult,
@@ -56,9 +59,9 @@ type LoadTestChecksResult = {
 
 function metricsResult (numbers: number[]): LoadTestMetric {
   return {
-    avg: mean(numbers),
     min: min(numbers),
     max: max(numbers),
+    avg: mean(numbers),
     med: median(numbers),
     p95: quantile(numbers, 0.95),
     p99: quantile(numbers, 0.99),
@@ -80,24 +83,22 @@ export async function loadTest (workflow: Workflow, options?: WorkflowOptions): 
   const results = resultList.map(result => (result as PromiseFulfilledResult<WorkflowResult>).value.result)
 
   // Tests metrics
-  const totalPassed = results.filter((r) => r.passed === true)
+  const testsPassed = results.filter((r) => r.passed === true).length
+  const testsFailed = results.filter((r) => r.passed === false).length
 
   // Steps metrics
-  const steps = results.map(r => r.tests).map(test => test.map(test => test.steps.map(step => step.passed))).flat(2)
-  const stepsPassed = steps.filter(step => step)
+  const steps = results.map(r => r.tests).map(test => test.map(test => test.steps)).flat(2)
+  const stepsPassed = steps.filter(step => step.passed === true).length
+  const stepsFailed = steps.filter(step => step.passed === false).length
+  const stepsSkipped = steps.filter(step => step.skipped === true).length
 
   // Response metrics
-  const responseTimes = results.map(r => r.tests).map(test => test.map(test => test.steps.map(step => step.responseTime))).flat(2)
-  const responseTime = metricsResult(responseTimes)
+  const responseTime = (metricsResult(steps.map(step => step.responseTime)))
 
   // Checks
   let checks: LoadTestChecksResult | undefined
   if (workflow.config?.loadTest?.check) {
     checks = {}
-
-    if (workflow.config?.loadTest?.check.avg) {
-      checks.avg = checkResult(responseTime.avg, workflow.config?.loadTest?.check.avg)
-    }
 
     if (workflow.config?.loadTest?.check.min) {
       checks.min = checkResult(responseTime.min, workflow.config?.loadTest?.check.min)
@@ -105,6 +106,10 @@ export async function loadTest (workflow: Workflow, options?: WorkflowOptions): 
 
     if (workflow.config?.loadTest?.check.max) {
       checks.max = checkResult(responseTime.max, workflow.config?.loadTest?.check.max)
+    }
+
+    if (workflow.config?.loadTest?.check.avg) {
+      checks.avg = checkResult(responseTime.avg, workflow.config?.loadTest?.check.avg)
     }
 
     if (workflow.config?.loadTest?.check.med) {
@@ -125,20 +130,23 @@ export async function loadTest (workflow: Workflow, options?: WorkflowOptions): 
     result: {
       stats: {
         steps: {
-          passed: steps.length,
-          total: stepsPassed.length
+          passed: stepsPassed,
+          failed: stepsFailed,
+          skipped: stepsSkipped,
+          total: steps.length
         },
         tests: {
-          passed: totalPassed.length,
+          passed: testsPassed,
+          failed: testsFailed,
           total: results.length
         },
       },
       responseTime,
-      rps: responseTimes.length / ((Date.now() - start.valueOf()) / 1000),
+      rps: steps.length / ((Date.now() - start.valueOf()) / 1000),
       iterations: results.length,
       duration: Date.now() - start.valueOf(),
       checks,
-      passed: Object.entries(checks as object).map(([k, v]) => v.passed).every(passed => passed)
+      passed: checks ? Object.entries(checks).map(([i, check]) => check.passed).every(passed => passed) : true
     }
   }
 
