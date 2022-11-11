@@ -10,22 +10,23 @@ export type LoadTestResult = {
   result: {
     stats: {
       tests: {
-        passed: number,
         failed: number
+        passed: number
         total: number
       },
       steps: {
-        passed: number,
-        failed: number,
-        skipped: number,
+        failed: number
+        passed: number
+        skipped: number
+        errored: number
         total: number
       }
     }
     responseTime: LoadTestMetric
-    iterations: number,
-    rps: number,
-    duration: number,
-    passed: boolean,
+    iterations: number
+    rps: number
+    duration: number
+    passed: boolean
     checks?: LoadTestChecksResult
   }
 }
@@ -91,6 +92,7 @@ export async function loadTest (workflow: Workflow, options?: WorkflowOptions): 
   const stepsPassed = steps.filter(step => step.passed === true).length
   const stepsFailed = steps.filter(step => step.passed === false).length
   const stepsSkipped = steps.filter(step => step.skipped === true).length
+  const stepsErrored = steps.filter(step => step.errored === true).length
 
   // Response metrics
   const responseTime = (metricsResult(steps.map(step => step.responseTime)))
@@ -130,14 +132,15 @@ export async function loadTest (workflow: Workflow, options?: WorkflowOptions): 
     result: {
       stats: {
         steps: {
-          passed: stepsPassed,
           failed: stepsFailed,
+          passed: stepsPassed,
           skipped: stepsSkipped,
+          errored: stepsErrored,
           total: steps.length
         },
         tests: {
-          passed: testsPassed,
           failed: testsFailed,
+          passed: testsPassed,
           total: results.length
         },
       },
