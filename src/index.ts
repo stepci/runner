@@ -8,7 +8,7 @@ import xpath from 'xpath'
 import FormData from 'form-data'
 import * as cheerio from 'cheerio'
 import { JSONPath } from 'jsonpath-plus'
-import { DOMParser } from 'xmldom'
+import { DOMParser } from '@xmldom/xmldom'
 import { compileExpression } from 'filtrex'
 import flatten from 'flat'
 import { EventEmitter } from 'node:events'
@@ -503,7 +503,8 @@ async function runTest (id: string, test: Test, schemaValidator: Ajv, options?: 
           filters: {
             fake,
             naughtystring
-          }
+          },
+          delimiters: ['${{', '}}']
         }) as Step
 
         if (step.http) {

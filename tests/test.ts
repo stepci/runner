@@ -6,7 +6,7 @@ const workflow = {
   version: "1.1",
   name: "Status Test",
   env: {
-    host: "example.com"
+    username: "mish"
   },
   testsFrom: ['tests/example.json']
 }
