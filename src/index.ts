@@ -180,8 +180,13 @@ export type HTTPStepAuth = {
   oauth?: {
     endpoint: string
     client_id: string
-    client_secret: string,
+    client_secret: string
     audience?: string
+  }
+  certificate?: {
+    ca?: string
+    cert: string
+    key: string
   }
 }
 
@@ -629,6 +634,9 @@ async function runTest (id: string, test: Test, schemaValidator: Ajv, options?: 
             timeout: step.http.timeout,
             cookieJar: cookies,
             https: {
+              certificate: step.http.auth?.certificate?.cert,
+              key: step.http.auth?.certificate?.key,
+              certificateAuthority: step.http.auth?.certificate?.ca,
               rejectUnauthorized: config?.http?.rejectUnauthorized ?? false
             }
           })
