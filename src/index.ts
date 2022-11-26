@@ -131,7 +131,7 @@ export type HTTPStep = {
 export type HTTPStepTRPC = {
   [key: string]: {
     query?: object | string | number
-    mutate?: object
+    mutation?: object
   }
 }
 
@@ -580,9 +580,9 @@ async function runTest (id: string, test: Test, schemaValidator: Ajv, options?: 
               }
             }
 
-            if (op.mutate) {
+            if (op.mutation) {
               step.http.method = 'POST'
-              requestBody = JSON.stringify(op.mutate)
+              requestBody = JSON.stringify(op.mutation)
             }
           }
 
