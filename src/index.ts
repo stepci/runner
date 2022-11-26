@@ -121,10 +121,18 @@ export type HTTPStep = {
   auth?: HTTPStepAuth
   json?: object
   graphql?: HTTPStepGraphQL
+  trpc?: HTTPStepTRPC
   captures?: HTTPStepCaptures
   check?: HTTPStepCheck
   followRedirects?: boolean
   timeout?: number
+}
+
+export type HTTPStepTRPC = {
+  [key: string]: {
+    query?: object | string | number
+    mutate?: object
+  }
 }
 
 export type gRPCStep = {
@@ -557,6 +565,25 @@ async function runTest (id: string, test: Test, schemaValidator: Ajv, options?: 
           if (step.http.graphql) {
             step.http.method = 'POST'
             requestBody = JSON.stringify(step.http.graphql)
+          }
+
+          // tRPC
+          if (step.http.trpc) {
+            // Does not support batching (yet)
+            const [procedure, op] = Object.entries(step.http.trpc)[0]
+            step.http.url = step.http.url + '/' + procedure
+
+            if (op.query) {
+              step.http.method = 'GET'
+              step.http.params = {
+                input: JSON.stringify(op.query)
+              }
+            }
+
+            if (op.mutate) {
+              step.http.method = 'POST'
+              requestBody = JSON.stringify(op.mutate)
+            }
           }
 
           // Form Data
