@@ -5,12 +5,14 @@
         {
           "name": "GET request",
           "http": {
-            "url": "https://httpbin.org/basic-auth/mish/ushakov",
+            "url": "https://example.com",
             "method": "GET",
             "auth": {
-              "basic": {
-                "username": "${{env.username}}",
-                "password": "ushakov"
+              "oauth": {
+                "endpoint": "https://stepci.eu.auth0.com/oauth/token",
+                "client_id": "1FvqNrLDdfNpAZFteOT1ijGh01fKR9MY",
+                "client_secret": "",
+                "audience": "https://stepci.eu.auth0.com/api/v2/"
               }
             },
             "check": {

@@ -1,7 +1,7 @@
 import got, { Method, Headers } from 'got'
 import { makeRequest, gRPCRequestMetadata } from 'cool-grpc'
 import { CookieJar } from 'tough-cookie'
-import { renderTemplate } from 'liquidless'
+import { renderObject } from 'liquidless'
 import { fake } from 'liquidless-faker'
 import { naughtystring } from 'liquidless-naughtystrings'
 import xpath from 'xpath'
@@ -34,7 +34,7 @@ export type Workflow = {
   name: string
   env?: EnvironmentVariables
   tests?: Tests
-  testsFrom?: string[]
+  include?: string[]
   components?: WorkflowComponents
   config?: WorkflowConfig
 }
@@ -177,6 +177,18 @@ export type HTTPStepAuth = {
   bearer?: {
     token: string
   }
+  oauth?: {
+    endpoint: string
+    client_id: string
+    client_secret: string,
+    audience?: string
+  }
+}
+
+type OAuthResponse = {
+  access_token: string,
+  expires_in: number,
+  token_type: string
 }
 
 export type HTTPStepGraphQL = {
@@ -422,8 +434,8 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
   const env = { ...workflow.env ?? {}, ...options?.env ?? {} }
   let tests = { ...workflow.tests ?? {} }
 
-  if (workflow.testsFrom) {
-    for (const workflowPath of workflow.testsFrom) {
+  if (workflow.include) {
+    for (const workflowPath of workflow.include) {
       const testFile = await fs.promises.readFile(path.join(path.dirname(options?.path || __dirname), workflowPath))
       const test = yaml.load(testFile.toString()) as Workflow
       tests = { ...tests, ...test.tests }
@@ -493,7 +505,7 @@ async function runTest (id: string, test: Test, schemaValidator: Ajv, options?: 
       stepResult.skipped = true
     } else {
       try {
-        step = renderTemplate(step, {
+        step = renderObject(step, {
           captures,
           env: { ...env, ...test.env },
           secrets: options?.secrets,
@@ -505,7 +517,7 @@ async function runTest (id: string, test: Test, schemaValidator: Ajv, options?: 
             naughtystring
           },
           delimiters: ['${{', '}}']
-        }) as Step
+        })
 
         if (step.http) {
           stepResult.type = 'http'
@@ -579,6 +591,22 @@ async function runTest (id: string, test: Test, schemaValidator: Ajv, options?: 
 
             if (step.http.auth.bearer) {
               step.http.headers['Authorization'] = 'Bearer ' + step.http.auth.bearer.token
+            }
+
+            if (step.http.auth.oauth) {
+              const { access_token } = await got.post(step.http.auth.oauth.endpoint, {
+                headers: {
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                  grant_type: 'client_credentials',
+                  client_id: step.http.auth.oauth.client_id,
+                  client_secret: step.http.auth.oauth.client_secret,
+                  audience: step.http.auth.oauth.audience
+                })
+              }).json() as OAuthResponse
+
+              step.http.headers['Authorization'] = 'Bearer ' + access_token
             }
           }
 

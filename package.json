@@ -41,7 +41,7 @@
     "got": "^11.8.3",
     "js-yaml": "^4.1.0",
     "jsonpath-plus": "^7.2.0",
-    "liquidless": "^1.1.0",
+    "liquidless": "^1.2.0",
     "liquidless-faker": "^1.0.1",
     "liquidless-naughtystrings": "^1.0.0",
     "phasic": "^1.0.2",

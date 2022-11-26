@@ -8,7 +8,7 @@ const workflow = {
   env: {
     username: "mish"
   },
-  testsFrom: ['tests/example.json']
+  include: ['tests/example.json']
 }
 
 const ee = new EventEmitter()
