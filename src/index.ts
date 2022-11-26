@@ -485,7 +485,7 @@ async function runTest (id: string, test: Test, schemaValidator: Ajv, options?: 
     }
 
     // Skip current step is the previous one failed or condition was unmet
-    if ((test.config?.continueOnFail === false || config?.continueOnFail === false) && (previous && !previous.passed)) {
+    if (((test.config?.continueOnFail ?? true) || (config?.continueOnFail ?? true)) && (previous && !previous.passed)) {
       stepResult.passed = false
       stepResult.errorMessage = 'Step was skipped because previous one failed'
       stepResult.skipped = true
@@ -597,11 +597,11 @@ async function runTest (id: string, test: Test, schemaValidator: Ajv, options?: 
             body: requestBody,
             searchParams: step.http.params ? new URLSearchParams(step.http.params) : undefined,
             throwHttpErrors: false,
-            followRedirect: step.http.followRedirects !== undefined ? step.http.followRedirects : true,
+            followRedirect: step.http.followRedirects ?? true,
             timeout: step.http.timeout,
             cookieJar: cookies,
             https: {
-              rejectUnauthorized: config?.http?.rejectUnauthorized !== undefined ? config?.http.rejectUnauthorized : false
+              rejectUnauthorized: config?.http?.rejectUnauthorized ?? false
             }
           })
           .on('request', request => options?.ee?.emit('step:http_request', request))
@@ -817,7 +817,7 @@ async function runTest (id: string, test: Test, schemaValidator: Ajv, options?: 
               stepResult.checks.ssl = {}
 
               if ('valid' in step.http.check.ssl) {
-                stepResult.checks.ssl.valid = checkResult(stepResult.response.ssl?.valid, step.http.check.ssl)
+                stepResult.checks.ssl.valid = checkResult(stepResult.response.ssl?.valid, step.http.check.ssl.valid)
               }
 
               if ('signed' in step.http.check.ssl) {
