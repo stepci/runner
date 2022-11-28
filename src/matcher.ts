@@ -62,7 +62,7 @@ function check (given: any, expected: Matcher[] | any) : boolean {
 
   // Check whether the expected value is regex
   if (/^\/.*\/$/.test(expected)) {
-    const regex = new RegExp(expected.match(/\/(.*?)\//)[1])
+    const regex = new RegExp(expected.match(/^\/(.*?)\/$/)[1])
     return regex.test(given)
   }
 
