@@ -2,7 +2,7 @@ import yaml from 'js-yaml'
 import { runPhases, Phase } from 'phasic'
 import fs from 'fs'
 import { quantile, mean, min, max, median } from 'simple-statistics'
-import { run, Workflow, WorkflowOptions, WorkflowResult, TestResult } from './index'
+import { run, Workflow, WorkflowOptions, WorkflowResult } from './index'
 import { Matcher, CheckResult, checkResult } from './matcher'
 
 export type LoadTestResult = {

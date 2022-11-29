@@ -9,10 +9,8 @@ import FormData from 'form-data'
 import * as cheerio from 'cheerio'
 import { JSONPath } from 'jsonpath-plus'
 import { DOMParser } from '@xmldom/xmldom'
-import { compileExpression } from 'filtrex'
-import flatten from 'flat'
 import { EventEmitter } from 'node:events'
-import { parseCSV, TestData } from './utils'
+import { parseCSV, TestData } from './utils/testdata'
 import crypto from 'crypto'
 import fs from 'fs'
 import yaml from 'js-yaml'
@@ -22,6 +20,7 @@ import { PeerCertificate, TLSSocket } from 'node:tls'
 import path from 'node:path'
 import { Matcher, checkResult, CheckResult, CheckResults } from './matcher'
 import { LoadTestCheck } from './loadtesting'
+import { CapturesStorage, checkCondition, getCookie, didChecksPass } from './utils/runner'
 const { co2 } = require('@tgwf/co2')
 import { Phase } from 'phasic'
 
@@ -96,11 +95,6 @@ export type TestConfig = {
   continueOnFail?: boolean
 }
 
-type TestConditions = {
-  captures?: CapturesStorage
-  env?: object
-}
-
 export type Step = {
   id?: string
   name?: string
@@ -129,9 +123,11 @@ export type HTTPStep = {
 }
 
 export type HTTPStepTRPC = {
-  [key: string]: {
-    query?: object | string | number
-    mutation?: object
+  query?: {
+    [key: string]: object
+  }
+  mutation?: {
+    [key: string]: object
   }
 }
 
@@ -228,10 +224,6 @@ export type HTTPStepCapture = {
 
 export type gRPCStepCapture = {
   jsonpath?: string
-}
-
-type CapturesStorage = {
-  [key: string]: any
 }
 
 export type HTTPStepCheck = {
@@ -398,27 +390,6 @@ export type CheckResultSSL = {
   daysUntilExpiration?: CheckResult
 }
 
-// Check if expression
-function checkCondition (expression: string, data: TestConditions): boolean {
-  const filter = compileExpression(expression)
-  return filter(flatten(data))
-}
-
-// Get cookie
-function getCookie (store: CookieJar, name: string, url: string): string {
-  return store.getCookiesSync(url).filter(cookie => cookie.key === name)[0]?.value
-}
-
-// Did all checks pass?
-function didChecksPass (stepResult: StepResult) {
-  if (!stepResult.checks) return true
-
-  return Object.values(stepResult.checks as object).map(check => {
-    return check['passed'] ? check.passed : Object.values(check).map((c: any) => c.passed).every(passed => passed)
-  })
-  .every(passed => passed)
-}
-
 // Run from YAML string
 export function runFromYAML (yamlString: string, options?: WorkflowOptions): Promise<WorkflowResult> {
   return run(yaml.load(yamlString) as Workflow, options)
@@ -569,20 +540,20 @@ async function runTest (id: string, test: Test, schemaValidator: Ajv, options?: 
 
           // tRPC
           if (step.http.trpc) {
-            // Does not support batching (yet)
-            const [procedure, op] = Object.entries(step.http.trpc)[0]
-            step.http.url = step.http.url + '/' + procedure
-
-            if (op.query) {
+            if (step.http.trpc.query) {
+              const [procedure, data] = Object.entries(step.http.trpc.query)[0]
               step.http.method = 'GET'
+              step.http.url = step.http.url + '/' + procedure
               step.http.params = {
-                input: JSON.stringify(op.query)
+                input: JSON.stringify(data)
               }
             }
 
-            if (op.mutation) {
+            if (step.http.trpc.mutation) {
+              const [procedure, data] = Object.entries(step.http.trpc.mutation)[0]
               step.http.method = 'POST'
-              requestBody = JSON.stringify(op.mutation)
+              step.http.url = step.http.url + '/' + procedure
+              requestBody = JSON.stringify(data)
             }
           }
 
@@ -908,8 +879,9 @@ async function runTest (id: string, test: Test, schemaValidator: Ajv, options?: 
           stepResult.type = 'grpc'
 
           // Load TLS configuration from file or string
-          let tlsConfig: gRPCStepRequestTLS = {}
+          let tlsConfig: gRPCStepRequestTLS | undefined
           if (step.grpc.tls) {
+            tlsConfig = {}
             if (step.grpc.tls.rootCerts) {
               if ((step.grpc.tls.rootCerts as StepFile).file) {
                 const file = await fs.promises.readFile((step.grpc.tls.rootCerts as StepFile).file)

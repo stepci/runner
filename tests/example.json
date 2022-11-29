@@ -7,9 +7,9 @@
           "http": {
             "url": "http://localhost:2022",
             "trpc": {
-              "userCreate": {
-                "mutation": {
-                  "name": "mish"
+              "mutation": {
+                "userCreate": {
+                  "name": "Mish"
                 }
               }
             },
