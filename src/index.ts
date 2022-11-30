@@ -515,7 +515,7 @@ async function runTest (id: string, test: Test, schemaValidator: Ajv, options?: 
             }
 
             if ((step.http.body as StepFile).file) {
-              requestBody = await fs.promises.readFile((step.http.body as StepFile).file)
+              requestBody = await fs.promises.readFile(path.join(path.dirname(options?.path || __dirname), (step.http.body as StepFile).file))
             }
           }
 
@@ -570,7 +570,7 @@ async function runTest (id: string, test: Test, schemaValidator: Ajv, options?: 
               }
 
               if ((step.http.formData[field] as StepFile).file) {
-                const file = await fs.promises.readFile((step.http.formData[field] as StepFile).file)
+                const file = await fs.promises.readFile(path.join(path.dirname(options?.path || __dirname), (step.http.formData[field] as StepFile).file))
                 formData.append(field, file)
               }
             }
@@ -621,9 +621,9 @@ async function runTest (id: string, test: Test, schemaValidator: Ajv, options?: 
             timeout: step.http.timeout,
             cookieJar: cookies,
             https: {
-              certificate: step.http.auth?.certificate?.cert ? await tryFile(step.http.auth?.certificate?.cert) : undefined,
-              key: step.http.auth?.certificate?.key ? await tryFile(step.http.auth?.certificate?.key) : undefined,
-              certificateAuthority: step.http.auth?.certificate?.ca ? await tryFile(step.http.auth?.certificate?.ca) : undefined,
+              certificate: step.http.auth?.certificate?.cert ? await tryFile(step.http.auth?.certificate?.cert, { workflowPath: options?.path }) : undefined,
+              key: step.http.auth?.certificate?.key ? await tryFile(step.http.auth?.certificate?.key, { workflowPath: options?.path }) : undefined,
+              certificateAuthority: step.http.auth?.certificate?.ca ? await tryFile(step.http.auth?.certificate?.ca, { workflowPath: options?.path }) : undefined,
               rejectUnauthorized: config?.http?.rejectUnauthorized ?? false
             }
           })
@@ -873,15 +873,15 @@ async function runTest (id: string, test: Test, schemaValidator: Ajv, options?: 
             tlsConfig = {}
 
             if (step.grpc.tls.rootCerts) {
-              tlsConfig.rootCerts = await tryFile(step.grpc.tls.rootCerts)
+              tlsConfig.rootCerts = await tryFile(step.grpc.tls.rootCerts, { workflowPath: options?.path })
             }
 
             if (step.grpc.tls.privateKey) {
-              tlsConfig.privateKey = await tryFile(step.grpc.tls.privateKey)
+              tlsConfig.privateKey = await tryFile(step.grpc.tls.privateKey, { workflowPath: options?.path })
             }
 
             if (step.grpc.tls.certChain) {
-              tlsConfig.certChain = await tryFile(step.grpc.tls.certChain)
+              tlsConfig.certChain = await tryFile(step.grpc.tls.certChain, { workflowPath: options?.path })
             }
           }
 
