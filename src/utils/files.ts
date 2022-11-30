@@ -9,10 +9,9 @@ type TryFileOptions = {
   workflowPath?: string
 }
 
-export async function tryFile (input: string | StepFile, options?: TryFileOptions): Promise<string> {
+export async function tryFile (input: string | StepFile, options?: TryFileOptions): Promise<Buffer | string> {
   if ((input as StepFile).file) {
-    const file = await fs.promises.readFile(path.join(path.dirname(options?.workflowPath || __dirname), (input as StepFile).file))
-    return file.toString()
+    return await fs.promises.readFile(path.join(path.dirname(options?.workflowPath || __dirname), (input as StepFile).file))
   } else {
     return input as string
   }

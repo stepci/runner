@@ -1,5 +1,5 @@
 import got, { Method, Headers, PlainResponse } from 'got'
-import { makeRequest, gRPCRequestMetadata } from 'cool-grpc'
+import { makeRequest, gRPCRequestMetadata, gRPCRequestTLS } from 'cool-grpc'
 import { CookieJar } from 'tough-cookie'
 import { renderObject } from 'liquidless'
 import { fake } from 'liquidless-faker'
@@ -510,13 +510,7 @@ async function runTest (id: string, test: Test, schemaValidator: Ajv, options?: 
 
           // Body
           if (step.http.body) {
-            if (typeof step.http.body === 'string') {
-              requestBody = step.http.body
-            }
-
-            if ((step.http.body as StepFile).file) {
-              requestBody = await fs.promises.readFile(path.join(path.dirname(options?.path || __dirname), (step.http.body as StepFile).file))
-            }
+            requestBody = await tryFile(step.http.body, { workflowPath: options?.path })
           }
 
           //  JSON
@@ -868,7 +862,7 @@ async function runTest (id: string, test: Test, schemaValidator: Ajv, options?: 
           stepResult.type = 'grpc'
 
           // Load TLS configuration from file or string
-          let tlsConfig: gRPCStepRequestTLS | undefined
+          let tlsConfig: gRPCRequestTLS | undefined
           if (step.grpc.tls) {
             tlsConfig = {}
 
@@ -886,17 +880,19 @@ async function runTest (id: string, test: Test, schemaValidator: Ajv, options?: 
           }
 
           const request: gRPCStepRequest = {
-            proto: step.grpc.proto,
+            proto: Array.isArray(step.grpc.proto)
+              ? step.grpc.proto.map(proto => path.join(path.dirname(options?.path || __dirname), proto))
+              : path.join(path.dirname(options?.path || __dirname), step.grpc.proto),
             host: step.grpc.host,
             metadata: step.grpc.metadata,
             service: step.grpc.service,
             method: step.grpc.method,
             data: step.grpc.data,
-            tls: tlsConfig
           }
 
           const { data, size } = await makeRequest(step.grpc.proto, {
             ...request,
+            tls: tlsConfig,
             beforeRequest: (req) => {
               stepResult.request = request
               options?.ee?.emit('step:grpc_request', request)
