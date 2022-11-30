@@ -1,4 +1,4 @@
-import got, { Method, Headers } from 'got'
+import got, { Method, Headers, PlainResponse } from 'got'
 import { makeRequest, gRPCRequestMetadata } from 'cool-grpc'
 import { CookieJar } from 'tough-cookie'
 import { renderObject } from 'liquidless'
@@ -10,7 +10,6 @@ import * as cheerio from 'cheerio'
 import { JSONPath } from 'jsonpath-plus'
 import { DOMParser } from '@xmldom/xmldom'
 import { EventEmitter } from 'node:events'
-import { parseCSV, TestData } from './utils/testdata'
 import crypto from 'crypto'
 import fs from 'fs'
 import yaml from 'js-yaml'
@@ -18,11 +17,14 @@ import Ajv from 'ajv'
 import addFormats from 'ajv-formats'
 import { PeerCertificate, TLSSocket } from 'node:tls'
 import path from 'node:path'
-import { Matcher, checkResult, CheckResult, CheckResults } from './matcher'
-import { LoadTestCheck } from './loadtesting'
-import { CapturesStorage, checkCondition, getCookie, didChecksPass } from './utils/runner'
 const { co2 } = require('@tgwf/co2')
 import { Phase } from 'phasic'
+import { Matcher, checkResult, CheckResult, CheckResults } from './matcher'
+import { LoadTestCheck } from './loadtesting'
+import { parseCSV, TestData } from './utils/testdata'
+import { CapturesStorage, checkCondition, getCookie, didChecksPass } from './utils/runner'
+import { getOAuthToken } from './utils/auth'
+import { tryFile, StepFile } from './utils/files'
 
 export type EnvironmentVariables = {
   [key: string]: string;
@@ -169,10 +171,6 @@ export type HTTPStepMultiPartForm = {
   [key: string]: string | StepFile
 }
 
-export type StepFile = {
-  file: string
-}
-
 export type HTTPStepAuth = {
   basic?: {
     username: string
@@ -188,16 +186,10 @@ export type HTTPStepAuth = {
     audience?: string
   }
   certificate?: {
-    ca?: string
-    cert: string
-    key: string
+    ca?: string | StepFile
+    cert: string | StepFile
+    key: string | StepFile
   }
-}
-
-type OAuthResponse = {
-  access_token: string,
-  expires_in: number,
-  token_type: string
 }
 
 export type HTTPStepGraphQL = {
@@ -342,7 +334,7 @@ export type HTTPStepResponse = {
   statusText?: string
   duration?: number
   contentType?: string
-  timings: any
+  timings: PlainResponse['timings']
   headers?: Headers
   ssl?: StepResponseSSL
   body: Buffer
@@ -535,6 +527,8 @@ async function runTest (id: string, test: Test, schemaValidator: Ajv, options?: 
           // GraphQL
           if (step.http.graphql) {
             step.http.method = 'POST'
+            if (!step.http.headers) step.http.headers = {}
+            step.http.headers['Content-Type'] = 'application/json'
             requestBody = JSON.stringify(step.http.graphql)
           }
 
@@ -597,17 +591,12 @@ async function runTest (id: string, test: Test, schemaValidator: Ajv, options?: 
             }
 
             if (step.http.auth.oauth) {
-              const { access_token } = await got.post(step.http.auth.oauth.endpoint, {
-                headers: {
-                  'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                  grant_type: 'client_credentials',
-                  client_id: step.http.auth.oauth.client_id,
-                  client_secret: step.http.auth.oauth.client_secret,
-                  audience: step.http.auth.oauth.audience
-                })
-              }).json() as OAuthResponse
+              const { access_token } = await getOAuthToken(
+                step.http.auth.oauth.endpoint,
+                step.http.auth.oauth.client_id,
+                step.http.auth.oauth.client_secret,
+                step.http.auth.oauth.audience
+              )
 
               step.http.headers['Authorization'] = 'Bearer ' + access_token
             }
@@ -632,9 +621,9 @@ async function runTest (id: string, test: Test, schemaValidator: Ajv, options?: 
             timeout: step.http.timeout,
             cookieJar: cookies,
             https: {
-              certificate: step.http.auth?.certificate?.cert,
-              key: step.http.auth?.certificate?.key,
-              certificateAuthority: step.http.auth?.certificate?.ca,
+              certificate: step.http.auth?.certificate?.cert ? await tryFile(step.http.auth?.certificate?.cert) : undefined,
+              key: step.http.auth?.certificate?.key ? await tryFile(step.http.auth?.certificate?.key) : undefined,
+              certificateAuthority: step.http.auth?.certificate?.ca ? await tryFile(step.http.auth?.certificate?.ca) : undefined,
               rejectUnauthorized: config?.http?.rejectUnauthorized ?? false
             }
           })
@@ -882,31 +871,17 @@ async function runTest (id: string, test: Test, schemaValidator: Ajv, options?: 
           let tlsConfig: gRPCStepRequestTLS | undefined
           if (step.grpc.tls) {
             tlsConfig = {}
+
             if (step.grpc.tls.rootCerts) {
-              if ((step.grpc.tls.rootCerts as StepFile).file) {
-                const file = await fs.promises.readFile((step.grpc.tls.rootCerts as StepFile).file)
-                tlsConfig.rootCerts = file.toString()
-              } else {
-                tlsConfig.rootCerts = step.grpc.tls.rootCerts as string
-              }
+              tlsConfig.rootCerts = await tryFile(step.grpc.tls.rootCerts)
             }
 
             if (step.grpc.tls.privateKey) {
-              if ((step.grpc.tls.privateKey as StepFile).file) {
-                const file = await fs.promises.readFile((step.grpc.tls.privateKey as StepFile).file)
-                tlsConfig.privateKey = file.toString()
-              } else {
-                tlsConfig.privateKey = step.grpc.tls.privateKey as string
-              }
+              tlsConfig.privateKey = await tryFile(step.grpc.tls.privateKey)
             }
 
             if (step.grpc.tls.certChain) {
-              if ((step.grpc.tls.certChain as StepFile).file) {
-                const file = await fs.promises.readFile((step.grpc.tls.certChain as StepFile).file)
-                tlsConfig.certChain = file.toString()
-              } else {
-                tlsConfig.certChain = step.grpc.tls.certChain as string
-              }
+              tlsConfig.certChain = await tryFile(step.grpc.tls.certChain)
             }
           }
 
@@ -996,7 +971,6 @@ async function runTest (id: string, test: Test, schemaValidator: Ajv, options?: 
             // Check byte size
             if (step.grpc.check.size) {
               stepResult.checks.size = checkResult(size, step.grpc.check.size)
-
             }
 
             // Check co2 emissions
