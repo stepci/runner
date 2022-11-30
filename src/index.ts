@@ -454,7 +454,7 @@ async function runTest (id: string, test: Test, schemaValidator: Ajv, options?: 
 
   // Load test data
   if (test.testdata) {
-    const parsedCSV = await parseCSV(test.testdata, test.testdata.options)
+    const parsedCSV = await parseCSV(test.testdata, { ...test.testdata.options, workflowPath: options?.path })
     testData = parsedCSV[Math.floor(Math.random() * parsedCSV.length)]
   }
 
