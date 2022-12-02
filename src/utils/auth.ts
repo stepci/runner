@@ -17,8 +17,8 @@ export type Credential = {
   }
   certificate?: {
     ca?: string | StepFile
-    cert: string | StepFile
-    key: string | StepFile
+    cert?: string | StepFile
+    key?: string | StepFile
     passphrase?: string
   }
   tls?: {
