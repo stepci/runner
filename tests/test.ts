@@ -5,10 +5,15 @@ import { EventEmitter } from 'node:events'
 const workflow = {
   version: "1.1",
   name: "Status Test",
-  env: {
-    username: "mish"
-  },
-  include: ['tests/example.json']
+  include: ['tests/auth.yml'],
+  credentials: {
+    example: {
+      basic: {
+        username: "hello",
+        password: "world"
+      }
+    }
+  }
 }
 
 const ee = new EventEmitter()

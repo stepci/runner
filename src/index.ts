@@ -1,5 +1,5 @@
 import got, { Method, Headers, PlainResponse } from 'got'
-import { makeRequest, gRPCRequestMetadata, gRPCRequestTLS } from 'cool-grpc'
+import { makeRequest, gRPCRequestMetadata } from 'cool-grpc'
 import { CookieJar } from 'tough-cookie'
 import { renderObject } from 'liquidless'
 import { fake } from 'liquidless-faker'
@@ -23,8 +23,9 @@ import { Matcher, checkResult, CheckResult, CheckResults } from './matcher'
 import { LoadTestCheck } from './loadtesting'
 import { parseCSV, TestData } from './utils/testdata'
 import { CapturesStorage, checkCondition, getCookie, didChecksPass } from './utils/runner'
-import { getOAuthToken } from './utils/auth'
+import { Credential, CredentialsStorage, HTTPCertificate, TLSCertificate, getAuthHeader, getClientCertificate, getTLSCertificate } from './utils/auth'
 import { tryFile, StepFile } from './utils/files'
+import { addCustomSchemas } from './utils/schema'
 
 export type EnvironmentVariables = {
   [key: string]: string;
@@ -37,6 +38,7 @@ export type Workflow = {
   tests?: Tests
   include?: string[]
   components?: WorkflowComponents
+  credentials?: CredentialsStorage
   config?: WorkflowConfig
 }
 
@@ -114,7 +116,7 @@ export type HTTPStep = {
   body?: string | StepFile
   form?: HTTPStepForm
   formData?: HTTPStepMultiPartForm
-  auth?: HTTPStepAuth
+  auth?: string | Credential
   json?: object
   graphql?: HTTPStepGraphQL
   trpc?: HTTPStepTRPC
@@ -140,15 +142,9 @@ export type gRPCStep = {
   method: string
   data: object
   metadata?: gRPCRequestMetadata
-  tls?: gRPCStepTLS
+  tls?: Credential['tls']
   captures?: gRPCStepCaptures
   check?: gRPCStepCheck
-}
-
-export type gRPCStepTLS = {
-  rootCerts?: string | StepFile
-  privateKey?: string | StepFile
-  certChain?: string | StepFile
 }
 
 export type HTTPStepHeaders = {
@@ -169,27 +165,6 @@ export type HTTPStepForm = {
 
 export type HTTPStepMultiPartForm = {
   [key: string]: string | StepFile
-}
-
-export type HTTPStepAuth = {
-  basic?: {
-    username: string
-    password: string
-  }
-  bearer?: {
-    token: string
-  }
-  oauth?: {
-    endpoint: string
-    client_id: string
-    client_secret: string
-    audience?: string
-  }
-  certificate?: {
-    ca?: string | StepFile
-    cert: string | StepFile
-    key: string | StepFile
-  }
 }
 
 export type HTTPStepGraphQL = {
@@ -319,13 +294,7 @@ export type gRPCStepRequest = {
   method: string
   metadata?: gRPCRequestMetadata
   data: object
-  tls?: gRPCStepRequestTLS
-}
-
-export type gRPCStepRequestTLS = {
-  rootCerts?: string
-  privateKey?: string
-  certChain?: string
+  tls?: string | Credential['tls']
 }
 
 export type HTTPStepResponse = {
@@ -402,9 +371,7 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
 
   // Add schemas to schema Validator
   if (workflow.components && workflow.components.schemas) {
-    for (const schema in workflow.components.schemas) {
-      schemaValidator.addSchema(workflow.components.schemas[schema], `#/components/schemas/${schema}`)
-    }
+    addCustomSchemas(schemaValidator, workflow.components.schemas)
   }
 
   const env = { ...workflow.env ?? {}, ...options?.env ?? {} }
@@ -418,7 +385,7 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
     }
   }
 
-  const testResults = await Promise.all(Object.entries(tests).map(([id, test]) => runTest(id, test, schemaValidator, options, workflow.config, env)))
+  const testResults = await Promise.all(Object.entries(tests).map(([id, test]) => runTest(id, test, schemaValidator, options, workflow.config, env, workflow.credentials)))
   const workflowResult: WorkflowResult = {
     workflow,
     result: {
@@ -435,7 +402,7 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
   return workflowResult
 }
 
-async function runTest (id: string, test: Test, schemaValidator: Ajv, options?: WorkflowOptions, config?: WorkflowConfig, env?: object): Promise<TestResult> {
+async function runTest (id: string, test: Test, schemaValidator: Ajv, options?: WorkflowOptions, config?: WorkflowConfig, env?: object, credentials?: CredentialsStorage): Promise<TestResult> {
   const testResult: TestResult = {
     id,
     name: test.name,
@@ -572,28 +539,16 @@ async function runTest (id: string, test: Test, schemaValidator: Ajv, options?: 
             requestBody = formData
           }
 
-          // Basic Auth
+          // Auth
+          let clientCredentials: HTTPCertificate | undefined
           if (step.http.auth) {
-            if (!step.http.headers) step.http.headers = {}
-
-            if (step.http.auth.basic) {
-              step.http.headers['Authorization'] = 'Basic ' + Buffer.from(step.http.auth.basic.username + ':' + step.http.auth.basic.password).toString('base64')
+            const authHeader = await getAuthHeader(step.http.auth, credentials)
+            if (authHeader) {
+              if (!step.http.headers) step.http.headers = {}
+              step.http.headers['Authorization'] = authHeader
             }
 
-            if (step.http.auth.bearer) {
-              step.http.headers['Authorization'] = 'Bearer ' + step.http.auth.bearer.token
-            }
-
-            if (step.http.auth.oauth) {
-              const { access_token } = await getOAuthToken(
-                step.http.auth.oauth.endpoint,
-                step.http.auth.oauth.client_id,
-                step.http.auth.oauth.client_secret,
-                step.http.auth.oauth.audience
-              )
-
-              step.http.headers['Authorization'] = 'Bearer ' + access_token
-            }
+            clientCredentials = await getClientCertificate(step.http.auth, credentials, { workflowPath: options?.path })
           }
 
           // Set Cookies
@@ -615,9 +570,7 @@ async function runTest (id: string, test: Test, schemaValidator: Ajv, options?: 
             timeout: step.http.timeout,
             cookieJar: cookies,
             https: {
-              certificate: step.http.auth?.certificate?.cert ? await tryFile(step.http.auth?.certificate?.cert, { workflowPath: options?.path }) : undefined,
-              key: step.http.auth?.certificate?.key ? await tryFile(step.http.auth?.certificate?.key, { workflowPath: options?.path }) : undefined,
-              certificateAuthority: step.http.auth?.certificate?.ca ? await tryFile(step.http.auth?.certificate?.ca, { workflowPath: options?.path }) : undefined,
+              ...clientCredentials,
               rejectUnauthorized: config?.http?.rejectUnauthorized ?? false
             }
           })
@@ -862,21 +815,9 @@ async function runTest (id: string, test: Test, schemaValidator: Ajv, options?: 
           stepResult.type = 'grpc'
 
           // Load TLS configuration from file or string
-          let tlsConfig: gRPCRequestTLS | undefined
+          let tlsConfig: TLSCertificate | undefined
           if (step.grpc.tls) {
-            tlsConfig = {}
-
-            if (step.grpc.tls.rootCerts) {
-              tlsConfig.rootCerts = await tryFile(step.grpc.tls.rootCerts, { workflowPath: options?.path })
-            }
-
-            if (step.grpc.tls.privateKey) {
-              tlsConfig.privateKey = await tryFile(step.grpc.tls.privateKey, { workflowPath: options?.path })
-            }
-
-            if (step.grpc.tls.certChain) {
-              tlsConfig.certChain = await tryFile(step.grpc.tls.certChain, { workflowPath: options?.path })
-            }
+            tlsConfig = await getTLSCertificate(step.grpc.tls, credentials, { workflowPath: options?.path })
           }
 
           const request: gRPCStepRequest = {
@@ -887,7 +828,7 @@ async function runTest (id: string, test: Test, schemaValidator: Ajv, options?: 
             metadata: step.grpc.metadata,
             service: step.grpc.service,
             method: step.grpc.method,
-            data: step.grpc.data,
+            data: step.grpc.data
           }
 
           const { data, size } = await makeRequest(step.grpc.proto, {

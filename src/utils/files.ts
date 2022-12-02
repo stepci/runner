@@ -5,7 +5,7 @@ export type StepFile = {
   file: string
 }
 
-type TryFileOptions = {
+export type TryFileOptions = {
   workflowPath?: string
 }
 

@@ -1,0 +1,10 @@
+tests:
+  example:
+    steps:
+      - name: Basic Auth
+        http:
+          url: https://httpbin.org/basic-auth/hello/world
+          method: GET
+          auth: example
+          check:
+            status: 200
