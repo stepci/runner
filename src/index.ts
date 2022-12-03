@@ -142,9 +142,13 @@ export type gRPCStep = {
   method: string
   data: object
   metadata?: gRPCRequestMetadata
-  tls?: Credential['tls']
+  auth?: string | gRPCStepAuth
   captures?: gRPCStepCaptures
   check?: gRPCStepCheck
+}
+
+export type gRPCStepAuth = {
+  tls?: Credential['tls']
 }
 
 export type HTTPStepHeaders = {
@@ -816,8 +820,8 @@ async function runTest (id: string, test: Test, schemaValidator: Ajv, options?: 
 
           // Load TLS configuration from file or string
           let tlsConfig: TLSCertificate | undefined
-          if (step.grpc.tls) {
-            tlsConfig = await getTLSCertificate(step.grpc.tls, credentials, { workflowPath: options?.path })
+          if (step.grpc.auth) {
+            tlsConfig = await getTLSCertificate(step.grpc.auth, credentials, { workflowPath: options?.path })
           }
 
           const request: gRPCStepRequest = {

@@ -73,6 +73,17 @@ export async function getOAuthToken (clientConfig: OAuthClientConfig): Promise<O
   .json() as OAuthResponse
 }
 
+function resolveCredential (credential: string | Credential, credentialsStorage?: CredentialsStorage) {
+  if (typeof credential === 'object') {
+    return credential
+  }
+
+  if (typeof credential === 'string' && credentialsStorage) {
+    if (!credentialsStorage[credential]) throw new Error(`No credential found: ${credential}`)
+    return credentialsStorage[credential]
+  }
+}
+
 async function authHeaderFromCredential (credential: Credential): Promise<string | undefined> {
   if (credential.basic) {
     return 'Basic ' + Buffer.from(credential.basic.username + ':' + credential.basic.password).toString('base64')
@@ -89,13 +100,9 @@ async function authHeaderFromCredential (credential: Credential): Promise<string
 }
 
 export async function getAuthHeader (credential: string | Credential, credentialsStorage?: CredentialsStorage): Promise<string | undefined> {
-  if (typeof credential === 'object') {
-    return authHeaderFromCredential(credential)
-  }
-
-  if (typeof credential === 'string' && credentialsStorage) {
-    if (!credentialsStorage[credential]) throw `No such credential: ${credential} found`
-    return authHeaderFromCredential(credentialsStorage[credential])
+  const resolvedCredential = resolveCredential(credential, credentialsStorage)
+  if (resolvedCredential) {
+    return authHeaderFromCredential(resolvedCredential)
   }
 }
 
@@ -124,13 +131,9 @@ async function clientCertificateFromCredential (certificate: Credential['certifi
 }
 
 export async function getClientCertificate (credential: string | Credential, credentialsStorage?: CredentialsStorage, options?: TryFileOptions): Promise<HTTPCertificate | undefined> {
-  if (typeof credential === 'object' && credential) {
-    return clientCertificateFromCredential(credential.certificate, options)
-  }
-
-  if (typeof credential === 'string' && credentialsStorage) {
-    if (!credentialsStorage[credential]) throw `No such credential: ${credential} found`
-    return clientCertificateFromCredential(credentialsStorage[credential].certificate, options)
+  const resolvedCredential = resolveCredential(credential, credentialsStorage)
+  if (resolvedCredential) {
+    return clientCertificateFromCredential(resolvedCredential.certificate, options)
   }
 }
 
@@ -154,13 +157,9 @@ export async function TLSCertificateFromCredential (certificate: Credential['tls
   }
 }
 
-export async function getTLSCertificate (credential: string | Credential['tls'], credentialsStorage?: CredentialsStorage, options?: TryFileOptions): Promise<TLSCertificate | undefined> {
-  if (typeof credential === 'object' && credential) {
-    return TLSCertificateFromCredential(credential, options)
-  }
-
-  if (typeof credential === 'string' && credentialsStorage) {
-    if (!credentialsStorage[credential]) throw `No such credential: ${credential} found`
-    return TLSCertificateFromCredential(credentialsStorage[credential].tls, options)
+export async function getTLSCertificate (credential: string | Credential, credentialsStorage?: CredentialsStorage, options?: TryFileOptions): Promise<TLSCertificate | undefined> {
+  const resolvedCredential = resolveCredential(credential, credentialsStorage)
+  if (resolvedCredential) {
+    return TLSCertificateFromCredential(resolvedCredential.tls, options)
   }
 }
