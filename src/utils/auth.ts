@@ -28,6 +28,10 @@ export type Credential = {
   }
 }
 
+export type CredentialRef = {
+  $ref: string
+}
+
 export type CredentialsStorage = {
   [key: string]: Credential
 }
@@ -73,14 +77,15 @@ export async function getOAuthToken (clientConfig: OAuthClientConfig): Promise<O
   .json() as OAuthResponse
 }
 
-function resolveCredential (credential: string | Credential, credentialsStorage?: CredentialsStorage) {
-  if (typeof credential === 'object') {
-    return credential
-  }
+function resolveCredential (credential: CredentialRef | Credential, credentialsStorage?: CredentialsStorage): Credential | undefined {
+  if ((credential as CredentialRef).$ref) {
+    if (!credentialsStorage) throw new Error(`No credentials found`)
 
-  if (typeof credential === 'string' && credentialsStorage) {
-    if (!credentialsStorage[credential]) throw new Error(`No credential found: ${credential}`)
-    return credentialsStorage[credential]
+    const resolvedRef = (credential as CredentialRef).$ref.match('#\/components\/credentials\/(.*)')
+    if (!resolvedRef || !credentialsStorage[resolvedRef[1]]) throw new Error(`No credential found: ${credential}`)
+    return credentialsStorage[resolvedRef[1]]
+  } else if (typeof credential === 'object') {
+    return credential as Credential
   }
 }
 
@@ -99,7 +104,7 @@ async function authHeaderFromCredential (credential: Credential): Promise<string
   }
 }
 
-export async function getAuthHeader (credential: string | Credential, credentialsStorage?: CredentialsStorage): Promise<string | undefined> {
+export async function getAuthHeader (credential: CredentialRef | Credential, credentialsStorage?: CredentialsStorage): Promise<string | undefined> {
   const resolvedCredential = resolveCredential(credential, credentialsStorage)
   if (resolvedCredential) {
     return authHeaderFromCredential(resolvedCredential)
@@ -130,7 +135,7 @@ async function clientCertificateFromCredential (certificate: Credential['certifi
   }
 }
 
-export async function getClientCertificate (credential: string | Credential, credentialsStorage?: CredentialsStorage, options?: TryFileOptions): Promise<HTTPCertificate | undefined> {
+export async function getClientCertificate (credential: CredentialRef | Credential, credentialsStorage?: CredentialsStorage, options?: TryFileOptions): Promise<HTTPCertificate | undefined> {
   const resolvedCredential = resolveCredential(credential, credentialsStorage)
   if (resolvedCredential) {
     return clientCertificateFromCredential(resolvedCredential.certificate, options)
@@ -157,7 +162,7 @@ export async function TLSCertificateFromCredential (certificate: Credential['tls
   }
 }
 
-export async function getTLSCertificate (credential: string | Credential, credentialsStorage?: CredentialsStorage, options?: TryFileOptions): Promise<TLSCertificate | undefined> {
+export async function getTLSCertificate (credential: CredentialRef | Credential, credentialsStorage?: CredentialsStorage, options?: TryFileOptions): Promise<TLSCertificate | undefined> {
   const resolvedCredential = resolveCredential(credential, credentialsStorage)
   if (resolvedCredential) {
     return TLSCertificateFromCredential(resolvedCredential.tls, options)

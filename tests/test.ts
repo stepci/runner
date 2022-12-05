@@ -6,11 +6,13 @@ const workflow = {
   version: "1.1",
   name: "Status Test",
   include: ['tests/auth.yml'],
-  credentials: {
-    example: {
-      basic: {
-        username: "hello",
-        password: "world"
+  components: {
+    credentials: {
+      example: {
+        basic: {
+          username: "hello",
+          password: "world"
+        }
       }
     }
   }

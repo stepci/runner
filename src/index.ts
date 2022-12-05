@@ -23,7 +23,7 @@ import { Matcher, checkResult, CheckResult, CheckResults } from './matcher'
 import { LoadTestCheck } from './loadtesting'
 import { parseCSV, TestData } from './utils/testdata'
 import { CapturesStorage, checkCondition, getCookie, didChecksPass } from './utils/runner'
-import { Credential, CredentialsStorage, HTTPCertificate, TLSCertificate, getAuthHeader, getClientCertificate, getTLSCertificate } from './utils/auth'
+import { Credential, CredentialRef, CredentialsStorage, HTTPCertificate, TLSCertificate, getAuthHeader, getClientCertificate, getTLSCertificate } from './utils/auth'
 import { tryFile, StepFile } from './utils/files'
 import { addCustomSchemas } from './utils/schema'
 
@@ -38,14 +38,14 @@ export type Workflow = {
   tests?: Tests
   include?: string[]
   components?: WorkflowComponents
-  credentials?: CredentialsStorage
   config?: WorkflowConfig
 }
 
 export type WorkflowComponents = {
-  schemas: {
+  schemas?: {
     [key: string]: any
   }
+  credentials?: CredentialsStorage
 }
 
 export type WorkflowConfig = {
@@ -116,7 +116,7 @@ export type HTTPStep = {
   body?: string | StepFile
   form?: HTTPStepForm
   formData?: HTTPStepMultiPartForm
-  auth?: string | Credential
+  auth?: CredentialRef | Credential
   json?: object
   graphql?: HTTPStepGraphQL
   trpc?: HTTPStepTRPC
@@ -142,7 +142,7 @@ export type gRPCStep = {
   method: string
   data: object
   metadata?: gRPCRequestMetadata
-  auth?: string | gRPCStepAuth
+  auth?: CredentialRef | gRPCStepAuth
   captures?: gRPCStepCaptures
   check?: gRPCStepCheck
 }
@@ -298,7 +298,7 @@ export type gRPCStepRequest = {
   method: string
   metadata?: gRPCRequestMetadata
   data: object
-  tls?: string | Credential['tls']
+  tls?: CredentialRef | Credential['tls']
 }
 
 export type HTTPStepResponse = {
@@ -374,7 +374,7 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
   addFormats(schemaValidator)
 
   // Add schemas to schema Validator
-  if (workflow.components && workflow.components.schemas) {
+  if (workflow.components?.schemas) {
     addCustomSchemas(schemaValidator, workflow.components.schemas)
   }
 
@@ -389,7 +389,7 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
     }
   }
 
-  const testResults = await Promise.all(Object.entries(tests).map(([id, test]) => runTest(id, test, schemaValidator, options, workflow.config, env, workflow.credentials)))
+  const testResults = await Promise.all(Object.entries(tests).map(([id, test]) => runTest(id, test, schemaValidator, options, workflow.config, env, workflow.components?.credentials)))
   const workflowResult: WorkflowResult = {
     workflow,
     result: {

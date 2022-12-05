@@ -5,6 +5,7 @@ tests:
         http:
           url: https://httpbin.org/basic-auth/hello/world
           method: GET
-          auth: example
+          auth:
+            $ref: '#/components/credentials/example'
           check:
             status: 200
