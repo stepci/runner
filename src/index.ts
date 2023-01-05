@@ -124,6 +124,7 @@ export type HTTPStep = {
   check?: HTTPStepCheck
   followRedirects?: boolean
   timeout?: number
+  retries?: number
 }
 
 export type HTTPStepTRPC = {
@@ -572,6 +573,7 @@ async function runTest (id: string, test: Test, schemaValidator: Ajv, options?: 
             throwHttpErrors: false,
             followRedirect: step.http.followRedirects ?? true,
             timeout: step.http.timeout,
+            retry: step.http.retries ?? 0,
             cookieJar: cookies,
             https: {
               ...clientCredentials,
