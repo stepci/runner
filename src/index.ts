@@ -57,6 +57,7 @@ export type WorkflowConfig = {
   http?: {
     baseURL?: string
     rejectUnauthorized?: boolean
+    http2?: boolean
   }
 }
 
@@ -356,6 +357,8 @@ export type CheckResultSSL = {
   daysUntilExpiration?: CheckResult
 }
 
+const templateDelimiters = ['${{', '}}']
+
 // Run from YAML string
 export function runFromYAML (yamlString: string, options?: WorkflowOptions): Promise<WorkflowResult> {
   return run(yaml.load(yamlString) as Workflow, options)
@@ -380,6 +383,12 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
   }
 
   const env = { ...workflow.env ?? {}, ...options?.env ?? {} }
+
+  let credentials: CredentialsStorage | undefined
+  if (workflow.components?.credentials) {
+    credentials = renderObject(workflow.components?.credentials, { env }, { delimiters: templateDelimiters })
+  }
+
   let tests = { ...workflow.tests ?? {} }
 
   if (workflow.include) {
@@ -390,7 +399,7 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
     }
   }
 
-  const testResults = await Promise.all(Object.entries(tests).map(([id, test]) => runTest(id, test, schemaValidator, options, workflow.config, env, workflow.components?.credentials)))
+  const testResults = await Promise.all(Object.entries(tests).map(([id, test]) => runTest(id, test, schemaValidator, options, workflow.config, env, credentials)))
   const workflowResult: WorkflowResult = {
     workflow,
     result: {
@@ -464,7 +473,7 @@ async function runTest (id: string, test: Test, schemaValidator: Ajv, options?: 
             fake,
             naughtystring
           },
-          delimiters: ['${{', '}}']
+          delimiters: templateDelimiters
         })
 
         if (step.http) {
@@ -575,6 +584,7 @@ async function runTest (id: string, test: Test, schemaValidator: Ajv, options?: 
             timeout: step.http.timeout,
             retry: step.http.retries ?? 0,
             cookieJar: cookies,
+            http2: config?.http?.http2 ?? false,
             https: {
               ...clientCredentials,
               rejectUnauthorized: config?.http?.rejectUnauthorized ?? false
