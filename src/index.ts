@@ -512,7 +512,7 @@ async function runTest (id: string, test: Test, schemaValidator: Ajv, options?: 
             if (step.http.trpc.query) {
               const [procedure, data] = Object.entries(step.http.trpc.query)[0]
               step.http.method = 'GET'
-              step.http.url = step.http.url + '/' + procedure
+              step.http.url = step.http.url + '/' + procedure.replaceAll('/', '.')
               step.http.params = {
                 input: JSON.stringify(data)
               }
