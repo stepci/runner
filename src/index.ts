@@ -193,7 +193,7 @@ export type HTTPStepCapture = {
   selector?: string
   cookie?: string
   regex?: string
-  body?: string
+  body?: boolean
 }
 
 export type gRPCStepCapture = {
