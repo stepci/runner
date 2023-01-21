@@ -193,6 +193,7 @@ export type HTTPStepCapture = {
   selector?: string
   cookie?: string
   regex?: string
+  body?: string
 }
 
 export type gRPCStepCapture = {
@@ -662,6 +663,10 @@ async function runTest (id: string, test: Test, schemaValidator: Ajv, options?: 
 
               if (capture.regex) {
                 captures[name] = body.match(capture.regex)?.[1]
+              }
+
+              if (capture.body) {
+                captures[name] = body
               }
             }
           }
