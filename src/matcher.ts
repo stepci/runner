@@ -38,7 +38,7 @@ export function checkResult (given: any, expected: Matcher[] | any) : CheckResul
 }
 
 function check (given: any, expected: Matcher[] | any) : boolean {
-  if (typeof expected === 'object') {
+  if (Array.isArray(expected)) {
     return expected.map((test: Matcher) => {
       if (test.eq) return deepEqual(given, test.eq)
       if (test.ne) return given !== test.ne
