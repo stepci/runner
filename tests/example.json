@@ -5,13 +5,24 @@
         {
           "name": "GET request",
           "http": {
-            "url": "http://localhost:2022",
+            "url": "http://localhost:3000/api/trpc",
             "trpc": {
-              "mutation": {
-                "userCreate": {
-                  "name": "Mish"
+              "query": [
+                {
+                  "example.hello": {
+                    "json": {
+                      "text": "Mish"
+                    }
+                  }
+                },
+                {
+                  "example.hello": {
+                    "json": {
+                      "text": "Mish"
+                    }
+                  }
                 }
-              }
+              ]
             },
             "check": {
               "status": 200

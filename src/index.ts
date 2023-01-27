@@ -131,7 +131,9 @@ export type HTTPStep = {
 export type HTTPStepTRPC = {
   query?: {
     [key: string]: object
-  }
+  } | {
+    [key: string]: object
+  }[]
   mutation?: {
     [key: string]: object
   }
@@ -511,11 +513,29 @@ async function runTest (id: string, test: Test, schemaValidator: Ajv, options?: 
           // tRPC
           if (step.http.trpc) {
             if (step.http.trpc.query) {
-              const [procedure, data] = Object.entries(step.http.trpc.query)[0]
               step.http.method = 'GET'
-              step.http.url = step.http.url + '/' + procedure.replaceAll('/', '.')
-              step.http.params = {
-                input: JSON.stringify(data)
+
+              // tRPC Batch queries
+              if (Array.isArray(step.http.trpc.query)) {
+                const payload = step.http.trpc.query.map(e => {
+                  return {
+                    op: Object.keys(e)[0],
+                    data: Object.values(e)[0]
+                  }
+                })
+
+                const procedures = payload.map(p => p.op).join(',')
+                step.http.url = step.http.url + '/' + procedures.replaceAll('/', '.')
+                step.http.params = {
+                  batch: '1',
+                  input: JSON.stringify(Object.assign({}, payload.map(p => p.data)))
+                }
+              } else {
+                const [procedure, data] = Object.entries(step.http.trpc.query)[0]
+                step.http.url = step.http.url + '/' + procedure.replaceAll('/', '.')
+                step.http.params = {
+                  input: JSON.stringify(data)
+                }
               }
             }
 
