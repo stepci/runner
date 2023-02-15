@@ -2,6 +2,7 @@
   "extends": "@tsconfig/node16/tsconfig.json",
   "compilerOptions": {
     "outDir": "dist",
+    "module": "ESNext",
     "declaration": true
   },
   "include": ["src/**/*.ts"],

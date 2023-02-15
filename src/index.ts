@@ -1,4 +1,5 @@
-import got, { Method, Headers, PlainResponse } from 'got'
+import gotSsrf from 'got-ssrf'
+import { got as gotlib, Method, Headers, PlainResponse } from 'got'
 import { makeRequest, gRPCRequestMetadata } from 'cool-grpc'
 import { CookieJar } from 'tough-cookie'
 import { renderObject } from 'liquidless'
@@ -17,15 +18,17 @@ import Ajv from 'ajv'
 import addFormats from 'ajv-formats'
 import { PeerCertificate, TLSSocket } from 'node:tls'
 import path from 'node:path'
-const { co2 } = require('@tgwf/co2')
+import { co2 } from '@tgwf/co2'
 import { Phase } from 'phasic'
-import { Matcher, checkResult, CheckResult, CheckResults } from './matcher'
-import { LoadTestCheck } from './loadtesting'
-import { parseCSV, TestData } from './utils/testdata'
-import { CapturesStorage, checkCondition, getCookie, didChecksPass } from './utils/runner'
-import { Credential, CredentialRef, CredentialsStorage, HTTPCertificate, TLSCertificate, getAuthHeader, getClientCertificate, getTLSCertificate } from './utils/auth'
-import { tryFile, StepFile } from './utils/files'
-import { addCustomSchemas } from './utils/schema'
+import { Matcher, checkResult, CheckResult, CheckResults } from './matcher.js'
+import { LoadTestCheck } from './loadtesting.js'
+import { parseCSV, TestData } from './utils/testdata.js'
+import { CapturesStorage, checkCondition, getCookie, didChecksPass } from './utils/runner.js'
+import { Credential, CredentialRef, CredentialsStorage, HTTPCertificate, TLSCertificate, getAuthHeader, getClientCertificate, getTLSCertificate } from './utils/auth.js'
+import { tryFile, StepFile } from './utils/files.js'
+import { addCustomSchemas } from './utils/schema.js'
+
+const got = gotlib.extend(gotSsrf);
 
 export type EnvironmentVariables = {
   [key: string]: string;
@@ -602,8 +605,8 @@ async function runTest (id: string, test: Test, schemaValidator: Ajv, options?: 
             searchParams: step.http.params ? new URLSearchParams(step.http.params) : undefined,
             throwHttpErrors: false,
             followRedirect: step.http.followRedirects ?? true,
-            timeout: step.http.timeout,
-            retry: step.http.retries ?? 0,
+            timeout: {request: step.http.timeout},
+            retry: {limit: step.http.retries ?? 0},
             cookieJar: cookies,
             http2: config?.http?.http2 ?? false,
             https: {
