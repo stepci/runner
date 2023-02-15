@@ -1,5 +1,4 @@
-import gotSsrf from 'got-ssrf'
-import { got as gotlib, Method, Headers, PlainResponse } from 'got'
+import { got, Method, Headers, PlainResponse } from 'got'
 import { makeRequest, gRPCRequestMetadata } from 'cool-grpc'
 import { CookieJar } from 'tough-cookie'
 import { renderObject } from 'liquidless'
@@ -27,8 +26,6 @@ import { CapturesStorage, checkCondition, getCookie, didChecksPass } from './uti
 import { Credential, CredentialRef, CredentialsStorage, HTTPCertificate, TLSCertificate, getAuthHeader, getClientCertificate, getTLSCertificate } from './utils/auth.js'
 import { tryFile, StepFile } from './utils/files.js'
 import { addCustomSchemas } from './utils/schema.js'
-
-const got = gotlib.extend(gotSsrf);
 
 export type EnvironmentVariables = {
   [key: string]: string;
