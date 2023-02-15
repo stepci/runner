@@ -7,7 +7,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "build:watch": "tsc -w -p tsconfig.json",
-    "test": "ts-node ./tests/test.ts",
+    "test": "ts-node --esm ./tests/test.ts",
     "test:loadtest": "ts-node ./tests/loadtesting.ts"
   },
   "repository": {
