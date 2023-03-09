@@ -1,4 +1,4 @@
-import got from 'got';
+import { gotSsrf as got } from 'got-ssrf';
 import { makeRequest } from 'cool-grpc';
 import { CookieJar } from 'tough-cookie';
 import { renderObject } from 'liquidless';
@@ -22,9 +22,6 @@ import { checkCondition, getCookie, didChecksPass } from './utils/runner.js';
 import { getAuthHeader, getClientCertificate, getTLSCertificate } from './utils/auth.js';
 import { tryFile } from './utils/files.js';
 import { addCustomSchemas } from './utils/schema.js';
-import { fileURLToPath } from 'url';
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 const templateDelimiters = ['${{', '}}'];
 // Run from YAML string
 export function runFromYAML(yamlString, options) {

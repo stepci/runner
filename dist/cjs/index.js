@@ -60,9 +60,6 @@ const runner_js_1 = require("./utils/runner.js");
 const auth_js_1 = require("./utils/auth.js");
 const files_js_1 = require("./utils/files.js");
 const schema_js_1 = require("./utils/schema.js");
-const url_1 = require("url");
-const __filename = (0, url_1.fileURLToPath)(import.meta.url);
-const __dirname = node_path_1.default.dirname(__filename);
 const templateDelimiters = ['${{', '}}'];
 // Run from YAML string
 function runFromYAML(yamlString, options) {
