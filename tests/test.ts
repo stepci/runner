@@ -1,4 +1,4 @@
-import { run } from '../src/index'
+import { run } from '../src/index.js'
 import { EventEmitter } from 'node:events'
 
 // Example workflow

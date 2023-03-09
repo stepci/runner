@@ -1,4 +1,4 @@
-import { got, Method, Headers, PlainResponse } from 'got'
+import got, { Method, Headers, PlainResponse } from 'got'
 import { makeRequest, gRPCRequestMetadata } from 'cool-grpc'
 import { CookieJar } from 'tough-cookie'
 import { renderObject } from 'liquidless'
