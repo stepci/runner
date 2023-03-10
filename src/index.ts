@@ -219,8 +219,8 @@ export type HTTPStepCheck = {
   sha256?: string
   md5?: string
   performance?: StepCheckPerformance | StepCheckMatcher
-  ssl?: StepCheckSSL | StepCheckMatcher
-  size?: number | Matcher[]
+  ssl?: StepCheckSSL
+  size?: StepCheckSize | StepCheckMatcher
   co2?: number | Matcher[]
 }
 
@@ -254,6 +254,11 @@ export type StepCheckSSL = {
   valid?: boolean
   signed?: boolean
   daysUntilExpiration?: number | Matcher[]
+}
+
+export type StepCheckSize = {
+  request?: number
+  response?: number
 }
 
 export type StepCheckMatcher = {
@@ -294,6 +299,7 @@ export type HTTPStepRequest = {
   method: string
   headers?: HTTPStepHeaders
   body?: string | Buffer | FormData
+  size?: number
 }
 
 export type gRPCStepRequest = {
@@ -317,12 +323,14 @@ export type HTTPStepResponse = {
   ssl?: StepResponseSSL
   body: Buffer
   co2: number
+  size?: number
 }
 
 export type gRPCStepResponse = {
   body: object | object[]
   duration: number
   co2: number
+  size: number
 }
 
 export type StepResponseSSL = {
@@ -350,7 +358,7 @@ export type StepCheckResult = {
   md5?: CheckResult
   performance?: CheckResults
   ssl?: CheckResultSSL
-  size?: CheckResult
+  size?: CheckResultSize
   co2?: CheckResult
 }
 
@@ -360,22 +368,27 @@ export type CheckResultSSL = {
   daysUntilExpiration?: CheckResult
 }
 
+export type CheckResultSize = {
+  request?: CheckResult
+  response?: CheckResult
+}
+
 const templateDelimiters = ['${{', '}}']
 
 // Run from YAML string
-export function runFromYAML (yamlString: string, options?: WorkflowOptions): Promise<WorkflowResult> {
+export function runFromYAML(yamlString: string, options?: WorkflowOptions): Promise<WorkflowResult> {
   return run(yaml.load(yamlString) as Workflow, options)
 }
 
 // Run from test file
-export async function runFromFile (path: string, options?: WorkflowOptions): Promise<WorkflowResult> {
+export async function runFromFile(path: string, options?: WorkflowOptions): Promise<WorkflowResult> {
   const testFile = await fs.promises.readFile(path)
   const config = yaml.load(testFile.toString()) as Workflow
   return run(config, { ...options, path })
 }
 
 // Run workflow
-export async function run (workflow: Workflow, options?: WorkflowOptions): Promise<WorkflowResult> {
+export async function run(workflow: Workflow, options?: WorkflowOptions): Promise<WorkflowResult> {
   const timestamp = new Date()
   const schemaValidator = new Ajv({ strictSchema: false })
   addFormats(schemaValidator)
@@ -419,7 +432,7 @@ export async function run (workflow: Workflow, options?: WorkflowOptions): Promi
   return workflowResult
 }
 
-async function runTest (id: string, test: Test, schemaValidator: Ajv, options?: WorkflowOptions, config?: WorkflowConfig, env?: object, credentials?: CredentialsStorage): Promise<TestResult> {
+async function runTest(id: string, test: Test, schemaValidator: Ajv, options?: WorkflowOptions, config?: WorkflowConfig, env?: object, credentials?: CredentialsStorage): Promise<TestResult> {
   const testResult: TestResult = {
     id,
     name: test.name,
@@ -593,8 +606,11 @@ async function runTest (id: string, test: Test, schemaValidator: Ajv, options?: 
             }
           }
 
-          // Make a request
           let sslCertificate: PeerCertificate | undefined
+          let requestSize: number | undefined = 0
+          let responseSize: number | undefined = 0
+
+          // Make a request
           const res = await got(step.http.url, {
             method: step.http.method as Method,
             headers: { ...step.http.headers },
@@ -611,24 +627,33 @@ async function runTest (id: string, test: Test, schemaValidator: Ajv, options?: 
               rejectUnauthorized: config?.http?.rejectUnauthorized ?? false
             }
           })
-          .on('request', request => options?.ee?.emit('step:http_request', request))
-          .on('response', response => options?.ee?.emit('step:http_response', response))
-          .on('response', response => {
-            if ((response.socket as TLSSocket).getPeerCertificate) {
-              sslCertificate = (response.socket as TLSSocket).getPeerCertificate()
-              if (Object.keys(sslCertificate).length === 0) sslCertificate = undefined
-            }
-          })
+            .on('request', request => options?.ee?.emit('step:http_request', request))
+            .on('request', request => {
+              request.once('socket', s => {
+                s.once('close', () => {
+                  requestSize = request.socket?.bytesWritten
+                  responseSize = request.socket?.bytesRead
+                })
+              })
+            })
+            .on('response', response => options?.ee?.emit('step:http_response', response))
+            .on('response', response => {
+              if ((response.socket as TLSSocket).getPeerCertificate) {
+                sslCertificate = (response.socket as TLSSocket).getPeerCertificate()
+                if (Object.keys(sslCertificate).length === 0) sslCertificate = undefined
+              }
+            })
 
           const responseData = res.rawBody
-          const body = await new TextDecoder().decode(responseData)
+          const body = new TextDecoder().decode(responseData)
 
           stepResult.request = {
             protocol: 'HTTP/1.1',
             url: res.url,
             method: step.http.method,
             headers: step.http.headers,
-            body: requestBody
+            body: requestBody,
+            size: requestSize
           }
 
           stepResult.response = {
@@ -640,7 +665,8 @@ async function runTest (id: string, test: Test, schemaValidator: Ajv, options?: 
             contentType: res.headers['content-type']?.split(';')[0],
             timings: res.timings,
             body: responseData,
-            co2: ssw.perByte(responseData.byteLength)
+            co2: ssw.perByte(requestSize + responseSize),
+            size: responseSize
           }
 
           if (sslCertificate) {
@@ -840,9 +866,17 @@ async function runTest (id: string, test: Test, schemaValidator: Ajv, options?: 
               }
             }
 
-            // Check byte size
+            // Check request/response size
             if (step.http.check.size) {
-              stepResult.checks.size = checkResult(responseData.byteLength, step.http.check.size)
+              stepResult.checks.size = {}
+
+              if (step.http.check.size.request) {
+                stepResult.checks.size.request = checkResult(responseSize, step.http.check.size.request)
+              }
+
+              if (step.http.check.size.response) {
+                stepResult.checks.size.response = checkResult(responseSize, step.http.check.size)
+              }
             }
 
             // Check co2 emissions
@@ -883,7 +917,8 @@ async function runTest (id: string, test: Test, schemaValidator: Ajv, options?: 
               stepResult.response = {
                 body: res.data,
                 duration: Date.now() - stepResult.timestamp.valueOf(),
-                co2: ssw.perByte(res.size)
+                co2: ssw.perByte(res.size),
+                size: res.size
               }
 
               options?.ee?.emit('step:grpc_response', res)
@@ -948,7 +983,9 @@ async function runTest (id: string, test: Test, schemaValidator: Ajv, options?: 
 
             // Check byte size
             if (step.grpc.check.size) {
-              stepResult.checks.size = checkResult(size, step.grpc.check.size)
+              stepResult.checks.size = {
+                response: checkResult(size, step.grpc.check.size)
+              }
             }
 
             // Check co2 emissions
