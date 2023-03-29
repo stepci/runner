@@ -14,7 +14,7 @@ import fs from 'fs';
 import yaml from 'js-yaml';
 import Ajv from 'ajv';
 import addFormats from 'ajv-formats';
-import https from 'node:https';
+import { Agent } from 'node:https';
 import path from 'node:path';
 import { co2 } from '@tgwf/co2';
 import { checkResult } from './matcher.js';
@@ -230,7 +230,10 @@ async function runTest(id, test, schemaValidator, options, config, env, credenti
                     }
                     // Make a request
                     let sslCertificate;
-                    https.globalAgent.on('keylog', (line, tlsSocket) => {
+                    let agent = new Agent({
+                        maxCachedSessions: 0
+                    });
+                    agent.on('keylog', (line, tlsSocket) => {
                         sslCertificate = tlsSocket.getPeerCertificate();
                     });
                     const res = await got(step.http.url, {
@@ -247,6 +250,9 @@ async function runTest(id, test, schemaValidator, options, config, env, credenti
                         https: {
                             ...clientCredentials,
                             rejectUnauthorized: config?.http?.rejectUnauthorized ?? false
+                        },
+                        agent: {
+                            https: agent
                         }
                     })
                         .on('request', request => options?.ee?.emit('step:http_request', request))

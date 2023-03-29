@@ -52,7 +52,7 @@ const fs_1 = __importDefault(require("fs"));
 const js_yaml_1 = __importDefault(require("js-yaml"));
 const ajv_1 = __importDefault(require("ajv"));
 const ajv_formats_1 = __importDefault(require("ajv-formats"));
-const node_https_1 = __importDefault(require("node:https"));
+const node_https_1 = require("node:https");
 const node_path_1 = __importDefault(require("node:path"));
 const co2_1 = require("@tgwf/co2");
 const matcher_js_1 = require("./matcher.js");
@@ -278,7 +278,10 @@ function runTest(id, test, schemaValidator, options, config, env, credentials) {
                         }
                         // Make a request
                         let sslCertificate;
-                        node_https_1.default.globalAgent.on('keylog', (line, tlsSocket) => {
+                        let agent = new node_https_1.Agent({
+                            maxCachedSessions: 0
+                        });
+                        agent.on('keylog', (line, tlsSocket) => {
                             sslCertificate = tlsSocket.getPeerCertificate();
                         });
                         const res = yield (0, got_1.default)(step.http.url, {
@@ -292,7 +295,10 @@ function runTest(id, test, schemaValidator, options, config, env, credentials) {
                             retry: { limit: (_f = step.http.retries) !== null && _f !== void 0 ? _f : 0 },
                             cookieJar: cookies,
                             http2: (_h = (_g = config === null || config === void 0 ? void 0 : config.http) === null || _g === void 0 ? void 0 : _g.http2) !== null && _h !== void 0 ? _h : false,
-                            https: Object.assign(Object.assign({}, clientCredentials), { rejectUnauthorized: (_k = (_j = config === null || config === void 0 ? void 0 : config.http) === null || _j === void 0 ? void 0 : _j.rejectUnauthorized) !== null && _k !== void 0 ? _k : false })
+                            https: Object.assign(Object.assign({}, clientCredentials), { rejectUnauthorized: (_k = (_j = config === null || config === void 0 ? void 0 : config.http) === null || _j === void 0 ? void 0 : _j.rejectUnauthorized) !== null && _k !== void 0 ? _k : false }),
+                            agent: {
+                                https: agent
+                            }
                         })
                             .on('request', request => { var _a; return (_a = options === null || options === void 0 ? void 0 : options.ee) === null || _a === void 0 ? void 0 : _a.emit('step:http_request', request); })
                             .on('response', response => { var _a; return (_a = options === null || options === void 0 ? void 0 : options.ee) === null || _a === void 0 ? void 0 : _a.emit('step:http_response', response); });
