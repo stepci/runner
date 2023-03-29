@@ -22,6 +22,7 @@ import { checkCondition, getCookie, didChecksPass } from './utils/runner.js';
 import { getAuthHeader, getClientCertificate, getTLSCertificate } from './utils/auth.js';
 import { tryFile } from './utils/files.js';
 import { addCustomSchemas } from './utils/schema.js';
+import tls from 'tls';
 const templateDelimiters = ['${{', '}}'];
 // Run from YAML string
 export function runFromYAML(yamlString, options) {
@@ -242,18 +243,15 @@ async function runTest(id, test, schemaValidator, options, config, env, credenti
                         http2: config?.http?.http2 ?? false,
                         https: {
                             ...clientCredentials,
-                            rejectUnauthorized: config?.http?.rejectUnauthorized ?? false
+                            rejectUnauthorized: config?.http?.rejectUnauthorized ?? false,
+                            checkServerIdentity: function (host, cert) {
+                                sslCertificate = cert;
+                                return tls.checkServerIdentity(host, cert);
+                            }
                         }
                     })
                         .on('request', request => options?.ee?.emit('step:http_request', request))
-                        .on('response', response => options?.ee?.emit('step:http_response', response))
-                        .on('response', response => {
-                        if (response.socket.getPeerCertificate) {
-                            sslCertificate = response.socket.getPeerCertificate();
-                            if (Object.keys(sslCertificate).length === 0)
-                                sslCertificate = undefined;
-                        }
-                    });
+                        .on('response', response => options?.ee?.emit('step:http_response', response));
                     const responseData = res.rawBody;
                     const body = await new TextDecoder().decode(responseData);
                     stepResult.request = {

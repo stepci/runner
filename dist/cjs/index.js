@@ -60,6 +60,7 @@ const runner_js_1 = require("./utils/runner.js");
 const auth_js_1 = require("./utils/auth.js");
 const files_js_1 = require("./utils/files.js");
 const schema_js_1 = require("./utils/schema.js");
+const tls_1 = __importDefault(require("tls"));
 const templateDelimiters = ['${{', '}}'];
 // Run from YAML string
 function runFromYAML(yamlString, options) {
@@ -288,17 +289,13 @@ function runTest(id, test, schemaValidator, options, config, env, credentials) {
                             retry: { limit: (_f = step.http.retries) !== null && _f !== void 0 ? _f : 0 },
                             cookieJar: cookies,
                             http2: (_h = (_g = config === null || config === void 0 ? void 0 : config.http) === null || _g === void 0 ? void 0 : _g.http2) !== null && _h !== void 0 ? _h : false,
-                            https: Object.assign(Object.assign({}, clientCredentials), { rejectUnauthorized: (_k = (_j = config === null || config === void 0 ? void 0 : config.http) === null || _j === void 0 ? void 0 : _j.rejectUnauthorized) !== null && _k !== void 0 ? _k : false })
+                            https: Object.assign(Object.assign({}, clientCredentials), { rejectUnauthorized: (_k = (_j = config === null || config === void 0 ? void 0 : config.http) === null || _j === void 0 ? void 0 : _j.rejectUnauthorized) !== null && _k !== void 0 ? _k : false, checkServerIdentity: function (host, cert) {
+                                    sslCertificate = cert;
+                                    return tls_1.default.checkServerIdentity(host, cert);
+                                } })
                         })
                             .on('request', request => { var _a; return (_a = options === null || options === void 0 ? void 0 : options.ee) === null || _a === void 0 ? void 0 : _a.emit('step:http_request', request); })
-                            .on('response', response => { var _a; return (_a = options === null || options === void 0 ? void 0 : options.ee) === null || _a === void 0 ? void 0 : _a.emit('step:http_response', response); })
-                            .on('response', response => {
-                            if (response.socket.getPeerCertificate) {
-                                sslCertificate = response.socket.getPeerCertificate();
-                                if (Object.keys(sslCertificate).length === 0)
-                                    sslCertificate = undefined;
-                            }
-                        });
+                            .on('response', response => { var _a; return (_a = options === null || options === void 0 ? void 0 : options.ee) === null || _a === void 0 ? void 0 : _a.emit('step:http_response', response); });
                         const responseData = res.rawBody;
                         const body = yield new TextDecoder().decode(responseData);
                         stepResult.request = {
