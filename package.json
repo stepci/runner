@@ -28,7 +28,7 @@
   "homepage": "https://github.com/StepCI/runner#readme",
   "dependencies": {
     "@fast-csv/parse": "^4.3.6",
-    "@tgwf/co2": "^0.12.1",
+    "@tgwf/co2": "^0.12.2",
     "@xmldom/xmldom": "^0.8.6",
     "ajv": "^8.11.0",
     "ajv-formats": "^2.1.1",
@@ -55,7 +55,7 @@
     "@types/deep-equal": "^1.0.1",
     "@types/flat": "^5.0.2",
     "@types/js-yaml": "^4.0.5",
-    "@types/node": "^18.7.18",
+    "@types/node": "^18.15.11",
     "@types/tough-cookie": "^4.0.2",
     "@types/xmldom": "^0.1.31",
     "ts-node": "^10.9.1",
@@ -63,8 +63,8 @@
   },
   "exports": {
     ".": {
-        "import": "./dist/esm/index.js",
-        "require": "./dist/cjs/index.js"
+      "import": "./dist/esm/index.js",
+      "require": "./dist/cjs/index.js"
     }
   }
 }

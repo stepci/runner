@@ -16,6 +16,7 @@ import yaml from 'js-yaml'
 import Ajv from 'ajv'
 import addFormats from 'ajv-formats'
 import { PeerCertificate, TLSSocket } from 'node:tls'
+import https from 'node:https';
 import path from 'node:path'
 import { co2 } from '@tgwf/co2'
 import { Phase } from 'phasic'
@@ -26,7 +27,6 @@ import { CapturesStorage, checkCondition, getCookie, didChecksPass } from './uti
 import { Credential, CredentialRef, CredentialsStorage, HTTPCertificate, TLSCertificate, getAuthHeader, getClientCertificate, getTLSCertificate } from './utils/auth.js'
 import { tryFile, StepFile } from './utils/files.js'
 import { addCustomSchemas } from './utils/schema.js'
-import tls from 'tls';
 
 export type EnvironmentVariables = {
   [key: string]: string;
@@ -596,6 +596,9 @@ async function runTest (id: string, test: Test, schemaValidator: Ajv, options?: 
 
           // Make a request
           let sslCertificate: PeerCertificate | undefined
+          (https.globalAgent as any).on('keylog', (line: Buffer, tlsSocket: TLSSocket) => {
+            sslCertificate = tlsSocket.getPeerCertificate()
+          })
           const res = await got(step.http.url, {
             method: step.http.method as Method,
             headers: { ...step.http.headers },
@@ -609,11 +612,7 @@ async function runTest (id: string, test: Test, schemaValidator: Ajv, options?: 
             http2: config?.http?.http2 ?? false,
             https: {
               ...clientCredentials,
-              rejectUnauthorized: config?.http?.rejectUnauthorized ?? false,
-              checkServerIdentity: function(host, cert) {
-                sslCertificate = cert
-                return tls.checkServerIdentity(host, cert)
-              }
+              rejectUnauthorized: config?.http?.rejectUnauthorized ?? false
             }
           })
           .on('request', request => options?.ee?.emit('step:http_request', request))

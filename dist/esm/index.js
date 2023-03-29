@@ -14,6 +14,7 @@ import fs from 'fs';
 import yaml from 'js-yaml';
 import Ajv from 'ajv';
 import addFormats from 'ajv-formats';
+import https from 'node:https';
 import path from 'node:path';
 import { co2 } from '@tgwf/co2';
 import { checkResult } from './matcher.js';
@@ -22,7 +23,6 @@ import { checkCondition, getCookie, didChecksPass } from './utils/runner.js';
 import { getAuthHeader, getClientCertificate, getTLSCertificate } from './utils/auth.js';
 import { tryFile } from './utils/files.js';
 import { addCustomSchemas } from './utils/schema.js';
-import tls from 'tls';
 const templateDelimiters = ['${{', '}}'];
 // Run from YAML string
 export function runFromYAML(yamlString, options) {
@@ -230,6 +230,9 @@ async function runTest(id, test, schemaValidator, options, config, env, credenti
                     }
                     // Make a request
                     let sslCertificate;
+                    https.globalAgent.on('keylog', (line, tlsSocket) => {
+                        sslCertificate = tlsSocket.getPeerCertificate();
+                    });
                     const res = await got(step.http.url, {
                         method: step.http.method,
                         headers: { ...step.http.headers },
@@ -243,11 +246,7 @@ async function runTest(id, test, schemaValidator, options, config, env, credenti
                         http2: config?.http?.http2 ?? false,
                         https: {
                             ...clientCredentials,
-                            rejectUnauthorized: config?.http?.rejectUnauthorized ?? false,
-                            checkServerIdentity: function (host, cert) {
-                                sslCertificate = cert;
-                                return tls.checkServerIdentity(host, cert);
-                            }
+                            rejectUnauthorized: config?.http?.rejectUnauthorized ?? false
                         }
                     })
                         .on('request', request => options?.ee?.emit('step:http_request', request))
