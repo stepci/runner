@@ -26,6 +26,7 @@ import { CapturesStorage, checkCondition, getCookie, didChecksPass } from './uti
 import { Credential, CredentialRef, CredentialsStorage, HTTPCertificate, TLSCertificate, getAuthHeader, getClientCertificate, getTLSCertificate } from './utils/auth.js'
 import { tryFile, StepFile } from './utils/files.js'
 import { addCustomSchemas } from './utils/schema.js'
+import tls from 'tls';
 
 export type EnvironmentVariables = {
   [key: string]: string;
@@ -608,17 +609,15 @@ async function runTest (id: string, test: Test, schemaValidator: Ajv, options?: 
             http2: config?.http?.http2 ?? false,
             https: {
               ...clientCredentials,
-              rejectUnauthorized: config?.http?.rejectUnauthorized ?? false
+              rejectUnauthorized: config?.http?.rejectUnauthorized ?? false,
+              checkServerIdentity: function(host, cert) {
+                sslCertificate = cert
+                return tls.checkServerIdentity(host, cert)
+              }
             }
           })
           .on('request', request => options?.ee?.emit('step:http_request', request))
           .on('response', response => options?.ee?.emit('step:http_response', response))
-          .on('response', response => {
-            if ((response.socket as TLSSocket).getPeerCertificate) {
-              sslCertificate = (response.socket as TLSSocket).getPeerCertificate()
-              if (Object.keys(sslCertificate).length === 0) sslCertificate = undefined
-            }
-          })
 
           const responseData = res.rawBody
           const body = await new TextDecoder().decode(responseData)
