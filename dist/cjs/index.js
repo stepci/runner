@@ -295,7 +295,7 @@ function runTest(id, test, schemaValidator, options, config, env, credentials) {
                             retry: { limit: (_f = step.http.retries) !== null && _f !== void 0 ? _f : 0 },
                             cookieJar: cookies,
                             http2: (_h = (_g = config === null || config === void 0 ? void 0 : config.http) === null || _g === void 0 ? void 0 : _g.http2) !== null && _h !== void 0 ? _h : false,
-                            https: Object.assign(Object.assign({}, clientCredentials), { rejectUnauthorized: (_k = (_j = config === null || config === void 0 ? void 0 : config.http) === null || _j === void 0 ? void 0 : _j.rejectUnauthorized) !== null && _k !== void 0 ? _k : false }),
+                            https: Object.assign(Object.assign({}, clientCredentials), { rejectUnauthorized: (_k = (_j = config === null || config === void 0 ? void 0 : config.http) === null || _j === void 0 ? void 0 : _j.rejectUnauthorized) !== null && _k !== void 0 ? _k : true }),
                             agent: {
                                 https: agent
                             }

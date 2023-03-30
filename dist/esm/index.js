@@ -249,7 +249,7 @@ async function runTest(id, test, schemaValidator, options, config, env, credenti
                         http2: config?.http?.http2 ?? false,
                         https: {
                             ...clientCredentials,
-                            rejectUnauthorized: config?.http?.rejectUnauthorized ?? false
+                            rejectUnauthorized: config?.http?.rejectUnauthorized ?? true
                         },
                         agent: {
                             https: agent

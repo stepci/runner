@@ -615,7 +615,7 @@ async function runTest (id: string, test: Test, schemaValidator: Ajv, options?: 
             http2: config?.http?.http2 ?? false,
             https: {
               ...clientCredentials,
-              rejectUnauthorized: config?.http?.rejectUnauthorized ?? false
+              rejectUnauthorized: config?.http?.rejectUnauthorized ?? true
             },
             agent: {
               https: agent
