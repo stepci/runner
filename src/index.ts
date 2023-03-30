@@ -16,7 +16,7 @@ import yaml from 'js-yaml'
 import Ajv from 'ajv'
 import addFormats from 'ajv-formats'
 import { PeerCertificate, TLSSocket } from 'node:tls'
-import { Agent } from 'node:https';
+import { Agent } from 'node:https'
 import path from 'node:path'
 const { co2 } = require('@tgwf/co2')
 import { Phase } from 'phasic'
@@ -596,9 +596,9 @@ async function runTest (id: string, test: Test, schemaValidator: Ajv, options?: 
 
           // Make a request
           let sslCertificate: PeerCertificate | undefined
-          let agent = new Agent({
+          const agent = new Agent({
             maxCachedSessions: 0
-          });
+          })
           const res = await got(step.http.url, {
             agent: {
               https: agent
