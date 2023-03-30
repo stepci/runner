@@ -16,16 +16,17 @@ import yaml from 'js-yaml'
 import Ajv from 'ajv'
 import addFormats from 'ajv-formats'
 import { PeerCertificate, TLSSocket } from 'node:tls'
+import { Agent } from 'node:https';
 import path from 'node:path'
-const { co2 } = require('@tgwf/co2')
+import { co2 } from '@tgwf/co2'
 import { Phase } from 'phasic'
-import { Matcher, checkResult, CheckResult, CheckResults } from './matcher'
-import { LoadTestCheck } from './loadtesting'
-import { parseCSV, TestData } from './utils/testdata'
-import { CapturesStorage, checkCondition, getCookie, didChecksPass } from './utils/runner'
-import { Credential, CredentialRef, CredentialsStorage, HTTPCertificate, TLSCertificate, getAuthHeader, getClientCertificate, getTLSCertificate } from './utils/auth'
-import { tryFile, StepFile } from './utils/files'
-import { addCustomSchemas } from './utils/schema'
+import { Matcher, checkResult, CheckResult, CheckResults } from './matcher.js'
+import { LoadTestCheck } from './loadtesting.js'
+import { parseCSV, TestData } from './utils/testdata.js'
+import { CapturesStorage, checkCondition, getCookie, didChecksPass } from './utils/runner.js'
+import { Credential, CredentialRef, CredentialsStorage, HTTPCertificate, TLSCertificate, getAuthHeader, getClientCertificate, getTLSCertificate } from './utils/auth.js'
+import { tryFile, StepFile } from './utils/files.js'
+import { addCustomSchemas } from './utils/schema.js'
 
 export type EnvironmentVariables = {
   [key: string]: string;
@@ -595,6 +596,15 @@ async function runTest (id: string, test: Test, schemaValidator: Ajv, options?: 
 
           // Make a request
           let sslCertificate: PeerCertificate | undefined
+          // Supply our own agent to disable session caching.
+          // If we don't do this, SSL certs for the server aren't
+          // available after the first request, and we can't check them.
+          let agent = new Agent({
+            maxCachedSessions: 0
+          });
+          (agent as any).on('keylog', (line: Buffer, tlsSocket: TLSSocket) => {
+              sslCertificate = tlsSocket.getPeerCertificate();
+          });
           const res = await got(step.http.url, {
             method: step.http.method as Method,
             headers: { ...step.http.headers },
@@ -602,23 +612,20 @@ async function runTest (id: string, test: Test, schemaValidator: Ajv, options?: 
             searchParams: step.http.params ? new URLSearchParams(step.http.params) : undefined,
             throwHttpErrors: false,
             followRedirect: step.http.followRedirects ?? true,
-            timeout: step.http.timeout,
-            retry: step.http.retries ?? 0,
+            timeout: {request: step.http.timeout},
+            retry: {limit: step.http.retries ?? 0},
             cookieJar: cookies,
             http2: config?.http?.http2 ?? false,
             https: {
               ...clientCredentials,
-              rejectUnauthorized: config?.http?.rejectUnauthorized ?? false
+              rejectUnauthorized: config?.http?.rejectUnauthorized ?? true
+            },
+            agent: {
+              https: agent // Supplying our no-caching agent here
             }
           })
           .on('request', request => options?.ee?.emit('step:http_request', request))
           .on('response', response => options?.ee?.emit('step:http_response', response))
-          .on('response', response => {
-            if ((response.socket as TLSSocket).getPeerCertificate) {
-              sslCertificate = (response.socket as TLSSocket).getPeerCertificate()
-              if (Object.keys(sslCertificate).length === 0) sslCertificate = undefined
-            }
-          })
 
           const responseData = res.rawBody
           const body = await new TextDecoder().decode(responseData)

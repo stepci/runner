@@ -1,5 +1,5 @@
 import got from 'got'
-import { StepFile, TryFileOptions, tryFile } from './files'
+import { StepFile, TryFileOptions, tryFile } from './files.js'
 
 export type Credential = {
   basic?: {

@@ -1,4 +1,4 @@
-import { StepResult } from '../index'
+import { StepResult } from '../index.js'
 import { compileExpression } from 'filtrex'
 import flatten from 'flat'
 import { CookieJar } from 'tough-cookie'
