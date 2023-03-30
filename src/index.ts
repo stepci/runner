@@ -596,6 +596,9 @@ async function runTest (id: string, test: Test, schemaValidator: Ajv, options?: 
 
           // Make a request
           let sslCertificate: PeerCertificate | undefined
+          // Supply our own agent to disable session caching.
+          // If we don't do this, SSL certs for the server aren't
+          // available after the first request, and we can't check them.
           let agent = new Agent({
             maxCachedSessions: 0
           });
@@ -618,7 +621,7 @@ async function runTest (id: string, test: Test, schemaValidator: Ajv, options?: 
               rejectUnauthorized: config?.http?.rejectUnauthorized ?? true
             },
             agent: {
-              https: agent
+              https: agent // Supplying our no-caching agent here
             }
           })
           .on('request', request => options?.ee?.emit('step:http_request', request))
