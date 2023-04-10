@@ -5,7 +5,7 @@ import { EventEmitter } from 'node:events'
 const workflow = {
   version: "1.1",
   name: "Status Test",
-  include: ['tests/example.json'],
+  include: ['tests/auth.yml'],
   components: {
     credentials: {
       example: {

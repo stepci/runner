@@ -221,7 +221,9 @@ export type HTTPStepCheck = {
   md5?: string
   performance?: StepCheckPerformance | StepCheckMatcher
   ssl?: StepCheckSSL
-  size?: StepCheckSize | StepCheckMatcher
+  size?: number | Matcher[]
+  requestSize?: number | Matcher[]
+  bodySize?: number | Matcher[]
   co2?: number | Matcher[]
 }
 
@@ -257,11 +259,6 @@ export type StepCheckSSL = {
   daysUntilExpiration?: number | Matcher[]
 }
 
-export type StepCheckSize = {
-  request?: number
-  response?: number
-}
-
 export type StepCheckMatcher = {
   [key: string]: Matcher[]
 }
@@ -274,6 +271,8 @@ export type TestResult = {
   timestamp: Date
   duration: number
   co2: number
+  bytesSent: number
+  bytesReceived: number
 }
 
 export type StepResult = {
@@ -292,6 +291,8 @@ export type StepResult = {
   co2: number
   request?: HTTPStepRequest | gRPCStepRequest
   response?: HTTPStepResponse | gRPCStepResponse
+  bytesSent: number
+  bytesReceived: number
 }
 
 export type HTTPStepRequest = {
@@ -311,6 +312,7 @@ export type gRPCStepRequest = {
   metadata?: gRPCRequestMetadata
   data: object
   tls?: CredentialRef | Credential['tls']
+  size?: number
 }
 
 export type HTTPStepResponse = {
@@ -325,6 +327,7 @@ export type HTTPStepResponse = {
   body: Buffer
   co2: number
   size?: number
+  bodySize?: number
 }
 
 export type gRPCStepResponse = {
@@ -359,7 +362,9 @@ export type StepCheckResult = {
   md5?: CheckResult
   performance?: CheckResults
   ssl?: CheckResultSSL
-  size?: CheckResultSize
+  size?: CheckResult
+  requestSize?: CheckResult
+  bodySize?: CheckResult
   co2?: CheckResult
 }
 
@@ -367,11 +372,6 @@ export type CheckResultSSL = {
   valid?: CheckResult
   signed?: CheckResult
   daysUntilExpiration?: CheckResult
-}
-
-export type CheckResultSize = {
-  request?: CheckResult
-  response?: CheckResult
 }
 
 const templateDelimiters = ['${{', '}}']
@@ -441,7 +441,9 @@ async function runTest(id: string, test: Test, schemaValidator: Ajv, options?: W
     passed: true,
     timestamp: new Date(),
     duration: 0,
-    co2: 0
+    co2: 0,
+    bytesSent: 0,
+    bytesReceived: 0
   }
 
   const captures: CapturesStorage = {}
@@ -467,6 +469,8 @@ async function runTest(id: string, test: Test, schemaValidator: Ajv, options?: W
       skipped: false,
       duration: 0,
       responseTime: 0,
+      bytesSent: 0,
+      bytesReceived: 0,
       co2: 0
     }
 
@@ -615,6 +619,7 @@ async function runTest(id: string, test: Test, schemaValidator: Ajv, options?: W
           const agent = new Agent({
             maxCachedSessions: 0
           })
+
           const res = await got(step.http.url, {
             agent: {
               https: agent
@@ -672,8 +677,9 @@ async function runTest(id: string, test: Test, schemaValidator: Ajv, options?: W
             contentType: res.headers['content-type']?.split(';')[0],
             timings: res.timings,
             body: responseData,
-            co2: ssw.perByte(requestSize + responseSize),
-            size: responseSize
+            co2: ssw.perByte(responseData.length),
+            size: responseSize,
+            bodySize: responseData.length
           }
 
           if (sslCertificate) {
@@ -691,8 +697,12 @@ async function runTest(id: string, test: Test, schemaValidator: Ajv, options?: W
               const capture = step.http.captures[name]
 
               if (capture.jsonpath) {
-                const json = JSON.parse(body)
-                captures[name] = JSONPath({ path: capture.jsonpath, json })[0]
+                try {
+                  const json = JSON.parse(body)
+                  captures[name] = JSONPath({ path: capture.jsonpath, json })[0]
+                } catch {
+                  captures[name] = undefined
+                }
               }
 
               if (capture.xpath) {
@@ -743,8 +753,16 @@ async function runTest(id: string, test: Test, schemaValidator: Ajv, options?: W
 
             // Check JSON
             if (step.http.check.json) {
-              const json = JSON.parse(body)
-              stepResult.checks.json = checkResult(json, step.http.check.json)
+              try {
+                const json = JSON.parse(body)
+                stepResult.checks.json = checkResult(json, step.http.check.json)
+              } catch {
+                stepResult.checks.json = {
+                  expected: step.http.check.json,
+                  given: body,
+                  passed: false
+                }
+              }
             }
 
             // Check Schema
@@ -765,12 +783,21 @@ async function runTest(id: string, test: Test, schemaValidator: Ajv, options?: W
 
             // Check JSONPath
             if (step.http.check.jsonpath) {
-              const json = JSON.parse(body)
               stepResult.checks.jsonpath = {}
-
-              for (const path in step.http.check.jsonpath) {
-                const result = JSONPath({ path, json })
-                stepResult.checks.jsonpath[path] = checkResult(result[0], step.http.check.jsonpath[path])
+              try {
+                const json = JSON.parse(body)
+                for (const path in step.http.check.jsonpath) {
+                  const result = JSONPath({ path, json })
+                  stepResult.checks.jsonpath[path] = checkResult(result[0], step.http.check.jsonpath[path])
+                }
+              } catch {
+                for (const path in step.http.check.jsonpath) {
+                  stepResult.checks.jsonpath[path] = {
+                    expected: step.http.check.jsonpath[path],
+                    given: body,
+                    passed: false
+                  }
+                }
               }
             }
 
@@ -875,15 +902,15 @@ async function runTest(id: string, test: Test, schemaValidator: Ajv, options?: W
 
             // Check request/response size
             if (step.http.check.size) {
-              stepResult.checks.size = {}
+              stepResult.checks.size = checkResult(responseSize, step.http.check.size)
+            }
 
-              if (step.http.check.size.request) {
-                stepResult.checks.size.request = checkResult(responseSize, step.http.check.size.request)
-              }
+            if (step.http.check.requestSize) {
+              stepResult.checks.requestSize = checkResult(requestSize, step.http.check.requestSize)
+            }
 
-              if (step.http.check.size.response) {
-                stepResult.checks.size.response = checkResult(responseSize, step.http.check.size)
-              }
+            if (step.http.check.bodySize) {
+              stepResult.checks.bodySize = checkResult(stepResult.response.bodySize, step.http.check.bodySize)
             }
 
             // Check co2 emissions
@@ -990,9 +1017,7 @@ async function runTest(id: string, test: Test, schemaValidator: Ajv, options?: W
 
             // Check byte size
             if (step.grpc.check.size) {
-              stepResult.checks.size = {
-                response: checkResult(size, step.grpc.check.size)
-              }
+              stepResult.checks.size = checkResult(size, step.grpc.check.size)
             }
 
             // Check co2 emissions
@@ -1014,6 +1039,8 @@ async function runTest(id: string, test: Test, schemaValidator: Ajv, options?: W
     stepResult.duration = Date.now() - stepResult.timestamp.valueOf()
     stepResult.responseTime = stepResult.response?.duration || 0
     stepResult.co2 = stepResult.response?.co2 || 0
+    stepResult.bytesSent = stepResult.request?.size || 0
+    stepResult.bytesReceived = stepResult.response?.size || 0
     testResult.steps.push(stepResult)
     previous = stepResult
 
@@ -1022,6 +1049,8 @@ async function runTest(id: string, test: Test, schemaValidator: Ajv, options?: W
 
   testResult.duration = Date.now() - testResult.timestamp.valueOf()
   testResult.co2 = testResult.steps.map(step => step.co2).reduce((a, b) => a + b)
+  testResult.bytesSent = testResult.steps.map(step => step.bytesSent).reduce((a, b) => a + b)
+  testResult.bytesReceived = testResult.steps.map(step => step.bytesReceived).reduce((a, b) => a + b)
   testResult.passed = testResult.steps.every(step => step.passed)
 
   options?.ee?.emit('test:result', testResult)

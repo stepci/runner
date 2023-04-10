@@ -86,6 +86,8 @@ function resolveCredential (credential: CredentialRef | Credential, credentialsS
     return credentialsStorage[resolvedRef[1]]
   } else if (typeof credential === 'object') {
     return credential as Credential
+  } else {
+    throw new Error(`No valid credentials specified`)
   }
 }
 

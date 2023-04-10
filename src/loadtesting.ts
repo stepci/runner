@@ -22,6 +22,9 @@ export type LoadTestResult = {
         total: number
       }
     }
+    bytesSent: number
+    bytesReceived: number
+    co2: number
     responseTime: LoadTestMetric
     iterations: number
     rps: number
@@ -95,7 +98,12 @@ export async function loadTest (workflow: Workflow, options?: WorkflowOptions): 
   const stepsErrored = steps.filter(step => step.errored === true).length
 
   // Response metrics
-  const responseTime = (metricsResult(steps.map(step => step.responseTime)))
+  const responseTime = metricsResult(steps.map(step => step.responseTime))
+
+  // Size Metrics
+  const bytesSent = steps.map(step => step.bytesSent).reduce((a, b) => a + b)
+  const bytesReceived = steps.map(step => step.bytesReceived).reduce((a, b) => a + b)
+  const co2 = steps.map(step => step.co2).reduce((a, b) => a + b)
 
   // Checks
   let checks: LoadTestChecksResult | undefined
@@ -145,6 +153,9 @@ export async function loadTest (workflow: Workflow, options?: WorkflowOptions): 
         },
       },
       responseTime,
+      bytesSent,
+      bytesReceived,
+      co2,
       rps: steps.length / ((Date.now() - start.valueOf()) / 1000),
       iterations: results.length,
       duration: Date.now() - start.valueOf(),

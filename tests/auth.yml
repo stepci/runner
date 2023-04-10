@@ -9,3 +9,5 @@ tests:
             $ref: '#/components/credentials/example'
           check:
             status: 200
+            json:
+              test: he
