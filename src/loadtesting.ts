@@ -101,9 +101,9 @@ export async function loadTest (workflow: Workflow, options?: WorkflowOptions): 
   const responseTime = metricsResult(steps.map(step => step.responseTime))
 
   // Size Metrics
-  const bytesSent = steps.map(step => step.bytesSent).reduce((a, b) => a + b)
-  const bytesReceived = steps.map(step => step.bytesReceived).reduce((a, b) => a + b)
-  const co2 = steps.map(step => step.co2).reduce((a, b) => a + b)
+  const bytesSent = results.map(result => result.bytesSent).reduce((a, b) => a + b)
+  const bytesReceived = results.map(result => result.bytesReceived).reduce((a, b) => a + b)
+  const co2 = results.map(result => result.co2).reduce((a, b) => a + b)
 
   // Checks
   let checks: LoadTestChecksResult | undefined
