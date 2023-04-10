@@ -34,7 +34,7 @@ const workflow = {
       steps: [{
         name: "GET request",
         http: {
-          url: "https://{{env.host}}",
+          url: "https://${{env.host}}",
           method: "GET",
           check: {
             status: "/^20/"
@@ -80,7 +80,7 @@ const workflow = {
       steps: [{
         name: "GET request",
         http: {
-          url: "https://{{env.host}}",
+          url: "https://${{env.host}}",
           method: "GET",
           check: {
             status: "/^20/"
