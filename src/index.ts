@@ -91,16 +91,11 @@ export type Test = {
   name?: string
   env?: object
   steps: Step[]
-  config?: TestConfig
   testdata?: TestData
 }
 
 export type Tests = {
   [key: string]: Test
-}
-
-export type TestConfig = {
-  continueOnFail?: boolean
 }
 
 export type Step = {
@@ -479,7 +474,7 @@ async function runTest(id: string, test: Test, schemaValidator: Ajv, options?: W
     }
 
     // Skip current step is the previous one failed or condition was unmet
-    if (((test.config?.continueOnFail ?? true) || (config?.continueOnFail ?? true)) && (previous && !previous.passed)) {
+    if (!config?.continueOnFail && (previous && !previous.passed)) {
       stepResult.passed = false
       stepResult.errorMessage = 'Step was skipped because previous one failed'
       stepResult.skipped = true
