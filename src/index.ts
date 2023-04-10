@@ -16,6 +16,7 @@ import yaml from 'js-yaml'
 import Ajv from 'ajv'
 import addFormats from 'ajv-formats'
 import { PeerCertificate, TLSSocket } from 'node:tls'
+import { Agent } from 'node:https'
 import path from 'node:path'
 const { co2 } = require('@tgwf/co2')
 import { Phase } from 'phasic'
@@ -611,7 +612,13 @@ async function runTest(id: string, test: Test, schemaValidator: Ajv, options?: W
           let responseSize: number | undefined = 0
 
           // Make a request
+          const agent = new Agent({
+            maxCachedSessions: 0
+          })
           const res = await got(step.http.url, {
+            agent: {
+              https: agent
+            },
             method: step.http.method as Method,
             headers: { ...step.http.headers },
             body: requestBody,
@@ -624,7 +631,7 @@ async function runTest(id: string, test: Test, schemaValidator: Ajv, options?: W
             http2: config?.http?.http2 ?? false,
             https: {
               ...clientCredentials,
-              rejectUnauthorized: config?.http?.rejectUnauthorized ?? false
+              rejectUnauthorized: config?.http?.rejectUnauthorized ?? true
             }
           })
             .on('request', request => options?.ee?.emit('step:http_request', request))
