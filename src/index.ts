@@ -15,6 +15,7 @@ import fs from 'fs'
 import yaml from 'js-yaml'
 import Ajv from 'ajv'
 import addFormats from 'ajv-formats'
+import pLimit from 'p-limit';
 import { PeerCertificate, TLSSocket } from 'node:tls'
 import { Agent } from 'node:https'
 import path from 'node:path'
@@ -60,6 +61,7 @@ export type WorkflowConfig = {
     rejectUnauthorized?: boolean
     http2?: boolean
   }
+  concurrency?: number
 }
 
 export type WorkflowOptions = {
@@ -67,6 +69,7 @@ export type WorkflowOptions = {
   secrets?: WorkflowOptionsSecrets
   ee?: EventEmitter
   env?: EnvironmentVariables
+  concurrency?: number
 }
 
 type WorkflowOptionsSecrets = {
@@ -413,7 +416,18 @@ export async function run(workflow: Workflow, options?: WorkflowOptions): Promis
     }
   }
 
-  const testResults = await Promise.all(Object.entries(tests).map(([id, test]) => runTest(id, test, schemaValidator, options, workflow.config, env, credentials)))
+  let limit = pLimit(Object.keys(tests).length)
+  if(workflow.config?.concurrency) {
+    limit = pLimit(workflow.config?.concurrency)
+  }
+  if(options?.concurrency){
+    limit = pLimit(options.concurrency)
+  }
+
+  let input:Promise<TestResult>[] = [];
+  Object.entries(tests).map(([id, test]) => input.push(limit(()=>runTest(id, test, schemaValidator, options, workflow.config, env, credentials))))
+  
+  const testResults = await Promise.all(input)
   const workflowResult: WorkflowResult = {
     workflow,
     result: {
