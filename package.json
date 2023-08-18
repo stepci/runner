@@ -44,6 +44,7 @@
     "liquidless": "^1.2.0",
     "liquidless-faker": "^1.0.1",
     "liquidless-naughtystrings": "^1.0.0",
+    "p-limit": "^3.1.0",
     "phasic": "^1.0.2",
     "simple-statistics": "^7.8.0",
     "tough-cookie": "^4.1.2",
