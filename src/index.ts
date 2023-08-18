@@ -454,12 +454,14 @@ export async function run(workflow: Workflow, options?: WorkflowOptions): Promis
 
   let concurrency_num = Object.keys(tests).length
 
-  if(workflow.config?.concurrency) {
+  if (workflow.config?.concurrency) {
     concurrency_num = workflow.config?.concurrency
   }
-  if(options?.concurrency){
+
+  if (options?.concurrency){
     concurrency_num = options.concurrency
   }
+
   if (concurrency_num <= 0){
     concurrency_num = 1
   }
@@ -467,8 +469,8 @@ export async function run(workflow: Workflow, options?: WorkflowOptions): Promis
   const limit = pLimit(concurrency_num)
 
   let input:Promise<TestResult>[] = [];
-  Object.entries(tests).map(([id, test]) => input.push(limit(()=>runTest(id, test, schemaValidator, options, workflow.config, env, credentials))))
-  
+  Object.entries(tests).map(([id, test]) => input.push(limit(()=> runTest(id, test, schemaValidator, options, workflow.config, env, credentials))))
+
   const testResults = await Promise.all(input)
   const workflowResult: WorkflowResult = {
     workflow,
