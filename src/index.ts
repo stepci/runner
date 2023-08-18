@@ -1,4 +1,5 @@
 import got, { Method, Headers, PlainResponse } from 'got'
+import EventSource from 'eventsource'
 import { makeRequest, gRPCRequestMetadata } from 'cool-grpc'
 import { CookieJar } from 'tough-cookie'
 import { renderObject } from 'liquidless'
@@ -104,6 +105,7 @@ export type Step = {
   if?: string
   http?: HTTPStep
   grpc?: gRPCStep
+  sse?: SSEStep
 }
 
 export type HTTPStep = {
@@ -135,6 +137,16 @@ export type HTTPStepTRPC = {
   mutation?: {
     [key: string]: object
   }
+}
+
+export type SSEStep = {
+  url: string
+  headers?: HTTPStepHeaders
+  params?: HTTPStepParams
+  auth?: CredentialRef | Credential
+  json?: object
+  check?: SSEStepCheck[]
+  timeout?: number
 }
 
 export type gRPCStep = {
@@ -234,6 +246,14 @@ export type gRPCStepCheck = {
   co2?: number | Matcher[]
 }
 
+export type SSEStepCheck = {
+  id: string
+  json?: object
+  schema?: object
+  jsonpath?: StepCheckJSONPath | StepCheckMatcher
+  body?: string | Matcher[]
+}
+
 export type StepCheckValue = {
   [key: string]: string
 }
@@ -273,7 +293,7 @@ export type TestResult = {
 }
 
 export type StepResult = {
-  type?: 'http' | 'grpc'
+  type?: 'http' | 'grpc' | 'sse'
   id?: string
   testId: string
   name?: string
@@ -286,10 +306,16 @@ export type StepResult = {
   duration: number
   responseTime: number
   co2: number
-  request?: HTTPStepRequest | gRPCStepRequest
-  response?: HTTPStepResponse | gRPCStepResponse
+  request?: HTTPStepRequest | SSEStepRequest | gRPCStepRequest
+  response?: HTTPStepResponse | SSEStepResponse | gRPCStepResponse
   bytesSent: number
   bytesReceived: number
+}
+
+export type SSEStepRequest = {
+  url?: string
+  headers?: HTTPStepHeaders
+  size?: number
 }
 
 export type HTTPStepRequest = {
@@ -327,6 +353,15 @@ export type HTTPStepResponse = {
   bodySize?: number
 }
 
+export type SSEStepResponse = {
+  contentType?: string
+  duration?: number
+  body: Buffer
+  size?: number
+  bodySize?: number
+  co2: number
+}
+
 export type gRPCStepResponse = {
   body: object | object[]
   duration: number
@@ -352,6 +387,7 @@ export type StepCheckResult = {
   selectors?: CheckResults
   cookies?: CheckResults
   captures?: CheckResults
+  messages?: CheckResults
   status?: CheckResult
   statusText?: CheckResult
   body?: CheckResult
@@ -1024,6 +1060,127 @@ async function runTest(id: string, test: Test, schemaValidator: Ajv, options?: W
               stepResult.checks.co2 = checkResult(stepResult.response?.co2, step.grpc.check.co2)
             }
           }
+        }
+
+        if (step.sse) {
+          stepResult.type = 'sse'
+
+          if (step.sse.auth) {
+            const authHeader = await getAuthHeader(step.sse.auth, credentials)
+            if (authHeader) {
+              if (!step.sse.headers) step.sse.headers = {}
+              step.sse.headers['Authorization'] = authHeader
+            }
+          }
+
+          await new Promise((resolve, reject) => {
+            const ev = new EventSource(step.sse?.url || '', {
+              headers: step.sse?.headers,
+              rejectUnauthorized: config?.http?.rejectUnauthorized ?? true
+            })
+
+            const messages: MessageEvent[] = []
+
+            const timeout = setTimeout(() => {
+              ev.close()
+              resolve(true)
+
+              const messagesBuffer = Buffer.from(messages.map(m => m.data).join('\n'))
+
+              stepResult.request = {
+                url: step.sse?.url,
+                headers: step.sse?.headers,
+                size: 0
+              }
+
+              stepResult.response = {
+                contentType: 'text/event-stream',
+                body: messagesBuffer,
+                size: messagesBuffer.length,
+                bodySize: messagesBuffer.length,
+                co2: ssw.perByte(messagesBuffer.length),
+                duration: step.sse?.timeout
+              }
+            }, step.sse?.timeout || 10000)
+
+            ev.onerror = (error) => {
+              clearTimeout(timeout)
+              ev.close()
+              reject(error)
+            }
+
+            if (step.sse?.check) {
+              if (!stepResult.checks) stepResult.checks = {}
+              if (!stepResult.checks.messages) stepResult.checks.messages = {}
+
+              step.sse?.check.forEach(check => {
+                (stepResult.checks?.messages as any)[check.id] = {
+                  expected: check.body || check.json || check.jsonpath || check.schema,
+                  given: undefined,
+                  passed: false
+                }
+              })
+            }
+
+            ev.onmessage = (message) => {
+              messages.push(message)
+
+              if (step.sse?.check) {
+                step.sse?.check.forEach((check, id) => {
+                  if (check.body) {
+                    const result = checkResult(message.data, check.body)
+                    if (result.passed && stepResult.checks?.messages) stepResult.checks.messages[check.id] = result
+                  }
+
+                  if (check.json) {
+                    try {
+                      const result = checkResult(JSON.parse(message.data), check.json)
+                      if (result.passed && stepResult.checks?.messages) stepResult.checks.messages[check.id] = result
+                    } catch (e) {
+                      reject(e)
+                    }
+                  }
+
+                  if (check.schema) {
+                    try {
+                      const sample = JSON.parse(message.data)
+                      const validate = schemaValidator.compile(check.schema)
+                      const result = {
+                        expected: check.schema,
+                        given: sample,
+                        passed: validate(sample)
+                      }
+
+                      if (result.passed && stepResult.checks?.messages) stepResult.checks.messages[check.id] = result
+                    } catch (e) {
+                      reject(e)
+                    }
+                  }
+
+                  if (check.jsonpath) {
+                    try {
+                      let jsonpathResult: CheckResults = {}
+                      const json = JSON.parse(message.data)
+                      for (const path in check.jsonpath) {
+                        const result = JSONPath({ path, json })
+                        jsonpathResult[path] = checkResult(result[0], check.jsonpath[path])
+                      }
+
+                      const passed = Object.values(jsonpathResult).map((c: CheckResult) => c.passed).every(passed => passed)
+
+                      if (passed && stepResult.checks?.messages) stepResult.checks.messages[check.id] = {
+                        expected: check.jsonpath,
+                        given: jsonpathResult,
+                        passed
+                      }
+                    } catch (e) {
+                      reject(e)
+                    }
+                  }
+                })
+              }
+            }
+          })
         }
 
         stepResult.passed = didChecksPass(stepResult)

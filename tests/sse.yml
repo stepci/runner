@@ -1,0 +1,11 @@
+tests:
+  example:
+    steps:
+      - name: SSE
+        sse:
+          url: http://localhost:8080
+          timeout: 10000
+          check:
+            - id: 'message'
+              jsonpath:
+                $.hello: "world"

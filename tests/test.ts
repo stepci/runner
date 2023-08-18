@@ -5,18 +5,8 @@ import { EventEmitter } from 'node:events'
 const workflow = {
   version: "1.1",
   name: "Status Test",
-  include: ['tests/auth.yml'],
-  components: {
-    credentials: {
-      example: {
-        basic: {
-          username: "hello",
-          password: "world"
-        }
-      }
-    }
-  }
+  include: ['tests/sse.yml']
 }
 
 const ee = new EventEmitter()
-run(workflow).then(({ result }) => console.log(result.tests[0]))
+run(workflow).then(({ result }) => console.log(result.tests[0].steps[0]))
