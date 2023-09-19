@@ -16,7 +16,7 @@ import fs from 'fs'
 import yaml from 'js-yaml'
 import Ajv from 'ajv'
 import addFormats from 'ajv-formats'
-import pLimit from 'p-limit';
+import pLimit from 'p-limit'
 import { PeerCertificate, TLSSocket } from 'node:tls'
 import { Agent } from 'node:https'
 import path from 'node:path'
@@ -30,18 +30,18 @@ import { Credential, CredentialRef, CredentialsStorage, HTTPCertificate, TLSCert
 import { tryFile, StepFile } from './utils/files'
 import { addCustomSchemas } from './utils/schema'
 
-export type EnvironmentVariables = {
-  [key: string]: string;
-}
-
 export type Workflow = {
   version: string
   name: string
-  env?: EnvironmentVariables
+  env?: WorkflowEnv
   tests?: Tests
   include?: string[]
   components?: WorkflowComponents
   config?: WorkflowConfig
+}
+
+export type WorkflowEnv = {
+  [key: string]: string
 }
 
 export type WorkflowComponents = {
@@ -69,7 +69,7 @@ export type WorkflowOptions = {
   path?: string
   secrets?: WorkflowOptionsSecrets
   ee?: EventEmitter
-  env?: EnvironmentVariables
+  env?: WorkflowEnv
   concurrency?: number
 }
 
@@ -452,24 +452,11 @@ export async function run(workflow: Workflow, options?: WorkflowOptions): Promis
     }
   }
 
-  let concurrency_num = Object.keys(tests).length
+  const concurrency = options?.concurrency || workflow.config?.concurrency || Object.keys(tests).length
+  const limit = pLimit(concurrency <= 0 ? 1 : concurrency)
 
-  if (workflow.config?.concurrency) {
-    concurrency_num = workflow.config?.concurrency
-  }
-
-  if (options?.concurrency){
-    concurrency_num = options.concurrency
-  }
-
-  if (concurrency_num <= 0){
-    concurrency_num = 1
-  }
-
-  const limit = pLimit(concurrency_num)
-
-  let input:Promise<TestResult>[] = [];
-  Object.entries(tests).map(([id, test]) => input.push(limit(()=> runTest(id, test, schemaValidator, options, workflow.config, env, credentials))))
+  const input: Promise<TestResult>[] = []
+  Object.entries(tests).map(([id, test]) => input.push(limit(() => runTest(id, test, schemaValidator, options, workflow.config, env, credentials))))
 
   const testResults = await Promise.all(input)
   const workflowResult: WorkflowResult = {
@@ -673,13 +660,11 @@ async function runTest(id: string, test: Test, schemaValidator: Ajv, options?: W
           let responseSize: number | undefined = 0
 
           // Make a request
-          const agent = new Agent({
-            maxCachedSessions: 0
-          })
-
           const res = await got(step.http.url, {
             agent: {
-              https: agent
+              https: new Agent({
+                maxCachedSessions: 0
+              })
             },
             method: step.http.method as Method,
             headers: { ...step.http.headers },
