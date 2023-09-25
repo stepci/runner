@@ -468,7 +468,7 @@ export async function run(workflow: Workflow, options?: WorkflowOptions): Promis
       duration: Date.now() - timestamp.valueOf(),
       co2: testResults.map(test => test.co2).reduce((a, b) => a + b),
       bytesSent: testResults.map(test => test.bytesSent).reduce((a, b) => a + b),
-      bytesReceived: testResults.map(test => test.bytesSent).reduce((a, b) => a + b),
+      bytesReceived: testResults.map(test => test.bytesReceived).reduce((a, b) => a + b),
     },
     path: options?.path
   }
