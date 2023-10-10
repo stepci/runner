@@ -678,7 +678,7 @@ async function runTest(id: string, test: Test, schemaValidator: Ajv, options?: W
             http2: config?.http?.http2 ?? false,
             https: {
               ...clientCredentials,
-              rejectUnauthorized: config?.http?.rejectUnauthorized ?? true
+              rejectUnauthorized: config?.http?.rejectUnauthorized ?? false
             }
           })
             .on('request', request => options?.ee?.emit('step:http_request', request))
