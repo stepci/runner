@@ -38,7 +38,7 @@
     "filtrex": "^3.0.0",
     "flat": "^5.0.2",
     "form-data": "^4.0.0",
-    "got": "^11.8.3",
+    "got": "^12.5.3",
     "js-yaml": "^4.1.0",
     "jsonpath-plus": "^7.2.0",
     "liquidless": "^1.2.0",
