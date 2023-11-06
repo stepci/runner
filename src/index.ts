@@ -439,7 +439,7 @@ export async function run(workflow: Workflow, options?: WorkflowOptions): Promis
 
   let credentials: CredentialsStorage | undefined
   if (workflow.components?.credentials) {
-    credentials = renderObject(workflow.components?.credentials, { env }, { delimiters: templateDelimiters })
+    credentials = renderObject(workflow.components?.credentials, { env, secrets: options?.secrets }, { delimiters: templateDelimiters })
   }
 
   let tests = { ...workflow.tests ?? {} }
