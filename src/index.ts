@@ -14,7 +14,7 @@ import { EventEmitter } from 'node:events'
 import crypto from 'crypto'
 import fs from 'fs'
 import yaml from 'js-yaml'
-import $RefParser from "@apidevtools/json-schema-ref-parser"
+import $RefParser from '@apidevtools/json-schema-ref-parser'
 import Ajv from 'ajv'
 import addFormats from 'ajv-formats'
 import pLimit from 'p-limit'
@@ -29,7 +29,6 @@ import { parseCSV, TestData } from './utils/testdata'
 import { CapturesStorage, checkCondition, getCookie, didChecksPass } from './utils/runner'
 import { Credential, CredentialsStorage, HTTPCertificate, TLSCertificate, getAuthHeader, getClientCertificate, getTLSCertificate } from './utils/auth'
 import { tryFile, StepFile } from './utils/files'
-import { addCustomSchemas } from './utils/schema'
 
 export type Workflow = {
   version: string
