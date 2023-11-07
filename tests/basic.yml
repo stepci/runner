@@ -1,0 +1,19 @@
+version: "1.1"
+name: Basic Auth
+components:
+  auth:
+    d:
+      basic:
+        username: hello
+        password: world
+tests:
+  example:
+    steps:
+      - name: Basic Auth
+        http:
+          url: https://httpbin.org/basic-auth/hello/world
+          method: GET
+          auth:
+            $ref: "#/components/auth/d"
+          check:
+            status: 200

@@ -14,6 +14,7 @@ import { EventEmitter } from 'node:events'
 import crypto from 'crypto'
 import fs from 'fs'
 import yaml from 'js-yaml'
+import $RefParser from '@apidevtools/json-schema-ref-parser'
 import Ajv from 'ajv'
 import addFormats from 'ajv-formats'
 import pLimit from 'p-limit'
@@ -26,16 +27,14 @@ import { Matcher, checkResult, CheckResult, CheckResults } from './matcher'
 import { LoadTestCheck } from './loadtesting'
 import { parseCSV, TestData } from './utils/testdata'
 import { CapturesStorage, checkCondition, getCookie, didChecksPass } from './utils/runner'
-import { Credential, CredentialRef, CredentialsStorage, HTTPCertificate, TLSCertificate, getAuthHeader, getClientCertificate, getTLSCertificate } from './utils/auth'
+import { Credential, CredentialsStorage, HTTPCertificate, TLSCertificate, getAuthHeader, getClientCertificate, getTLSCertificate } from './utils/auth'
 import { tryFile, StepFile } from './utils/files'
-import { addCustomSchemas } from './utils/schema'
 
 export type Workflow = {
   version: string
   name: string
   env?: WorkflowEnv
-  tests?: Tests
-  include?: string[]
+  tests: Tests
   components?: WorkflowComponents
   config?: WorkflowConfig
 }
@@ -120,7 +119,7 @@ export type HTTPStep = {
   body?: string | StepFile
   form?: HTTPStepForm
   formData?: HTTPStepMultiPartForm
-  auth?: CredentialRef | Credential
+  auth?: Credential
   json?: object
   graphql?: HTTPStepGraphQL
   trpc?: HTTPStepTRPC
@@ -146,7 +145,7 @@ export type SSEStep = {
   url: string
   headers?: HTTPStepHeaders
   params?: HTTPStepParams
-  auth?: CredentialRef | Credential
+  auth?: Credential
   json?: object
   check?: SSEStepCheck[]
   timeout?: number
@@ -159,7 +158,7 @@ export type gRPCStep = {
   method: string
   data: object
   metadata?: gRPCRequestMetadata
-  auth?: CredentialRef | gRPCStepAuth
+  auth?: gRPCStepAuth
   captures?: gRPCStepCaptures
   check?: gRPCStepCheck
 }
@@ -337,7 +336,7 @@ export type gRPCStepRequest = {
   method: string
   metadata?: gRPCRequestMetadata
   data: object
-  tls?: CredentialRef | Credential['tls']
+  tls?: Credential['tls']
   size?: number
 }
 
@@ -413,15 +412,16 @@ export type CheckResultSSL = {
 const templateDelimiters = ['${{', '}}']
 
 // Run from YAML string
-export function runFromYAML(yamlString: string, options?: WorkflowOptions): Promise<WorkflowResult> {
-  return run(yaml.load(yamlString) as Workflow, options)
+export async function runFromYAML(yamlString: string, options?: WorkflowOptions): Promise<WorkflowResult> {
+  const workflow = yaml.load(yamlString)
+  const dereffed = await $RefParser.dereference(workflow as any) as unknown as Workflow
+  return run(dereffed, options)
 }
 
 // Run from test file
 export async function runFromFile(path: string, options?: WorkflowOptions): Promise<WorkflowResult> {
   const testFile = await fs.promises.readFile(path)
-  const config = yaml.load(testFile.toString()) as Workflow
-  return run(config, { ...options, path })
+  return runFromYAML(testFile.toString(), { ...options, path })
 }
 
 // Run workflow
@@ -430,33 +430,25 @@ export async function run(workflow: Workflow, options?: WorkflowOptions): Promis
   const schemaValidator = new Ajv({ strictSchema: false })
   addFormats(schemaValidator)
 
-  // Add schemas to schema Validator
-  if (workflow.components?.schemas) {
-    addCustomSchemas(schemaValidator, workflow.components.schemas)
+  // Templating for env, components, config
+  const env = { ...workflow.env, ...options?.env }
+  if (workflow.env) {
+    workflow.env = renderObject(workflow.env, { env, secrets: options?.secrets }, { delimiters: templateDelimiters })
   }
 
-  const env = { ...workflow.env ?? {}, ...options?.env ?? {} }
-
-  let credentials: CredentialsStorage | undefined
-  if (workflow.components?.credentials) {
-    credentials = renderObject(workflow.components?.credentials, { env, secrets: options?.secrets }, { delimiters: templateDelimiters })
+  if (workflow.components) {
+    workflow.components = renderObject(workflow.components, { env, secrets: options?.secrets }, { delimiters: templateDelimiters })
   }
 
-  let tests = { ...workflow.tests ?? {} }
-
-  if (workflow.include) {
-    for (const workflowPath of workflow.include) {
-      const testFile = await fs.promises.readFile(path.join(path.dirname(options?.path || __dirname), workflowPath))
-      const test = yaml.load(testFile.toString()) as Workflow
-      tests = { ...tests, ...test.tests }
-    }
+  if (workflow.config) {
+    workflow.config = renderObject(workflow.config, { env, secrets: options?.secrets }, { delimiters: templateDelimiters })
   }
 
-  const concurrency = options?.concurrency || workflow.config?.concurrency || Object.keys(tests).length
+  const concurrency = options?.concurrency || workflow.config?.concurrency || Object.keys(workflow.tests).length
   const limit = pLimit(concurrency <= 0 ? 1 : concurrency)
 
   const input: Promise<TestResult>[] = []
-  Object.entries(tests).map(([id, test]) => input.push(limit(() => runTest(id, test, schemaValidator, options, workflow.config, env, credentials))))
+  Object.entries(workflow.tests).map(([id, test]) => input.push(limit(() => runTest(id, test, schemaValidator, options, workflow.config, workflow.env))))
 
   const testResults = await Promise.all(input)
   const workflowResult: WorkflowResult = {
@@ -477,7 +469,7 @@ export async function run(workflow: Workflow, options?: WorkflowOptions): Promis
   return workflowResult
 }
 
-async function runTest(id: string, test: Test, schemaValidator: Ajv, options?: WorkflowOptions, config?: WorkflowConfig, env?: object, credentials?: CredentialsStorage): Promise<TestResult> {
+async function runTest(id: string, test: Test, schemaValidator: Ajv, options?: WorkflowOptions, config?: WorkflowConfig, env?: object): Promise<TestResult> {
   const testResult: TestResult = {
     id,
     name: test.name,
@@ -639,13 +631,13 @@ async function runTest(id: string, test: Test, schemaValidator: Ajv, options?: W
           // Auth
           let clientCredentials: HTTPCertificate | undefined
           if (step.http.auth) {
-            const authHeader = await getAuthHeader(step.http.auth, credentials)
+            const authHeader = await getAuthHeader(step.http.auth)
             if (authHeader) {
               if (!step.http.headers) step.http.headers = {}
               step.http.headers['Authorization'] = authHeader
             }
 
-            clientCredentials = await getClientCertificate(step.http.auth, credentials, { workflowPath: options?.path })
+            clientCredentials = await getClientCertificate(step.http.auth.certificate, { workflowPath: options?.path })
           }
 
           // Set Cookies
@@ -968,7 +960,7 @@ async function runTest(id: string, test: Test, schemaValidator: Ajv, options?: W
           // Load TLS configuration from file or string
           let tlsConfig: TLSCertificate | undefined
           if (step.grpc.auth) {
-            tlsConfig = await getTLSCertificate(step.grpc.auth, credentials, { workflowPath: options?.path })
+            tlsConfig = await getTLSCertificate(step.grpc.auth.tls, { workflowPath: options?.path })
           }
 
           const request: gRPCStepRequest = {
@@ -1073,7 +1065,7 @@ async function runTest(id: string, test: Test, schemaValidator: Ajv, options?: W
           stepResult.type = 'sse'
 
           if (step.sse.auth) {
-            const authHeader = await getAuthHeader(step.sse.auth, credentials)
+            const authHeader = await getAuthHeader(step.sse.auth)
             if (authHeader) {
               if (!step.sse.headers) step.sse.headers = {}
               step.sse.headers['Authorization'] = authHeader
