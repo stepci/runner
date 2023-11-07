@@ -34,8 +34,7 @@ export type Workflow = {
   version: string
   name: string
   env?: WorkflowEnv
-  tests?: Tests
-  include?: string[]
+  tests: Tests
   components?: WorkflowComponents
   config?: WorkflowConfig
 }
@@ -100,6 +99,10 @@ export type Test = {
 
 export type Tests = {
   [key: string]: Test
+} | {
+  [key: string]: {
+    $ref: string
+  }
 }
 
 export type Step = {
@@ -420,8 +423,7 @@ export function runFromYAML(yamlString: string, options?: WorkflowOptions): Prom
 // Run from test file
 export async function runFromFile(path: string, options?: WorkflowOptions): Promise<WorkflowResult> {
   const testFile = await fs.promises.readFile(path)
-  const config = yaml.load(testFile.toString()) as Workflow
-  return run(config, { ...options, path })
+  return runFromYAML(testFile.toString(), { ...options, path })
 }
 
 // Run workflow
@@ -435,28 +437,25 @@ export async function run(workflow: Workflow, options?: WorkflowOptions): Promis
     addCustomSchemas(schemaValidator, workflow.components.schemas)
   }
 
-  const env = { ...workflow.env ?? {}, ...options?.env ?? {} }
-
-  let credentials: CredentialsStorage | undefined
-  if (workflow.components?.credentials) {
-    credentials = renderObject(workflow.components?.credentials, { env, secrets: options?.secrets }, { delimiters: templateDelimiters })
+  // Templating for env, components, config
+  const env = { ...workflow.env, ...options?.env }
+  if (workflow.env) {
+    workflow.env = renderObject(workflow.env, { env, secrets: options?.secrets }, { delimiters: templateDelimiters })
   }
 
-  let tests = { ...workflow.tests ?? {} }
-
-  if (workflow.include) {
-    for (const workflowPath of workflow.include) {
-      const testFile = await fs.promises.readFile(path.join(path.dirname(options?.path || __dirname), workflowPath))
-      const test = yaml.load(testFile.toString()) as Workflow
-      tests = { ...tests, ...test.tests }
-    }
+  if (workflow.components) {
+    workflow.components = renderObject(workflow.components, { env, secrets: options?.secrets }, { delimiters: templateDelimiters })
   }
 
-  const concurrency = options?.concurrency || workflow.config?.concurrency || Object.keys(tests).length
+  if (workflow.config) {
+    workflow.config = renderObject(workflow.config, { env, secrets: options?.secrets }, { delimiters: templateDelimiters })
+  }
+
+  const concurrency = options?.concurrency || workflow.config?.concurrency || Object.keys(workflow.tests).length
   const limit = pLimit(concurrency <= 0 ? 1 : concurrency)
 
   const input: Promise<TestResult>[] = []
-  Object.entries(tests).map(([id, test]) => input.push(limit(() => runTest(id, test, schemaValidator, options, workflow.config, env, credentials))))
+  Object.entries(workflow.tests).map(([id, test]) => input.push(limit(() => runTest(id, test, schemaValidator, options, workflow.config, workflow.env, workflow.components?.credentials))))
 
   const testResults = await Promise.all(input)
   const workflowResult: WorkflowResult = {
