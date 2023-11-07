@@ -1,16 +1,19 @@
 version: "1.1"
-name: Status Check
-env:
-  BASE_URL: https://example.com
-config:
-  http:
-    baseURL: ${{ env.BASE_URL }}
+name: Basic Auth
+components:
+  auth:
+    d:
+      basic:
+        username: hello
+        password: world
 tests:
   example:
     steps:
-      - name: GET request
+      - name: Basic Auth
         http:
-          url: /
+          url: https://httpbin.org/basic-auth/hello/world
           method: GET
+          auth:
+            $ref: "#/components/auth/d"
           check:
-            status: /^20/
+            status: 200
