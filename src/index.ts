@@ -1,4 +1,5 @@
 import got, { Method, Headers, PlainResponse } from 'got'
+import { ProxyAgent } from 'proxy-agent'
 import EventSource from 'eventsource'
 import { makeRequest, gRPCRequestMetadata } from 'cool-grpc'
 import { CookieJar } from 'tough-cookie'
@@ -654,9 +655,8 @@ async function runTest(id: string, test: Test, schemaValidator: Ajv, options?: W
           // Make a request
           const res = await got(step.http.url, {
             agent: {
-              https: new Agent({
-                maxCachedSessions: 0
-              })
+              http: new ProxyAgent(),
+              https: new ProxyAgent(new Agent({ maxCachedSessions: 0 }))
             },
             method: step.http.method as Method,
             headers: { ...step.http.headers },
