@@ -63,6 +63,9 @@ export type WorkflowConfig = {
     rejectUnauthorized?: boolean
     http2?: boolean
   }
+  grpc?: {
+    proto: string | string[]
+  }
   concurrency?: number
 }
 
@@ -333,7 +336,7 @@ export type HTTPStepRequest = {
 }
 
 export type gRPCStepRequest = {
-  proto: string | string[]
+  proto?: string | string[]
   host: string
   service: string
   method: string
@@ -372,6 +375,9 @@ export type gRPCStepResponse = {
   duration: number
   co2: number
   size: number
+  status?: number
+  statusText?: string
+  metadata?: object
 }
 
 export type StepResponseSSL = {
@@ -965,10 +971,19 @@ async function runTest(id: string, test: Test, schemaValidator: Ajv, options?: W
             tlsConfig = await getTLSCertificate(step.grpc.auth.tls, { workflowPath: options?.path })
           }
 
+          const protos: string[] = []
+          if (config?.grpc?.proto) {
+            protos.push(...config.grpc.proto)
+          }
+
+          if (step.grpc.proto) {
+            protos.push(...(Array.isArray(step.grpc.proto) ? step.grpc.proto : [step.grpc.proto]))
+          }
+
+          const proto = protos.map(p => path.join(path.dirname(options?.path || __dirname), p))
+
           const request: gRPCStepRequest = {
-            proto: Array.isArray(step.grpc.proto)
-              ? step.grpc.proto.map(proto => path.join(path.dirname(options?.path || __dirname), proto))
-              : path.join(path.dirname(options?.path || __dirname), step.grpc.proto),
+            proto,
             host: step.grpc.host,
             metadata: step.grpc.metadata,
             service: step.grpc.service,
@@ -976,24 +991,27 @@ async function runTest(id: string, test: Test, schemaValidator: Ajv, options?: W
             data: step.grpc.data
           }
 
-          const { data, size } = await makeRequest(step.grpc.proto, {
+          const { metadata, statusCode, statusMessage, data, size } = await makeRequest(proto, {
             ...request,
             tls: tlsConfig,
             beforeRequest: (req) => {
-              stepResult.request = request
               options?.ee?.emit('step:grpc_request', request)
             },
             afterResponse: (res) => {
-              stepResult.response = {
-                body: res.data,
-                duration: Date.now() - stepResult.timestamp.valueOf(),
-                co2: ssw.perByte(res.size),
-                size: res.size
-              }
-
               options?.ee?.emit('step:grpc_response', res)
             }
           })
+
+          stepResult.request = request
+          stepResult.response = {
+            body: data,
+            duration: Date.now() - stepResult.timestamp.valueOf(),
+            co2: ssw.perByte(size),
+            size: size,
+            status: statusCode,
+            statusText: statusMessage,
+            metadata
+          }
 
           // Captures
           if (step.grpc.captures) {
