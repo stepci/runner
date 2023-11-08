@@ -9,6 +9,7 @@ components:
 tests:
   example:
     steps:
+      - delay: 1000
       - name: Basic Auth
         http:
           url: https://httpbin.org/basic-auth/hello/world

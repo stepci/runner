@@ -22,6 +22,7 @@ import pLimit from 'p-limit'
 import { PeerCertificate, TLSSocket } from 'node:tls'
 import { Agent } from 'node:https'
 import path from 'node:path'
+import parseDuration from 'parse-duration'
 const { co2 } = require('@tgwf/co2')
 import { Phase } from 'phasic'
 import { Matcher, checkResult, CheckResult, CheckResults } from './matcher'
@@ -109,6 +110,7 @@ export type Step = {
   http?: HTTPStep
   grpc?: gRPCStep
   sse?: SSEStep
+  delay?: string
 }
 
 export type HTTPStep = {
@@ -296,7 +298,7 @@ export type TestResult = {
 }
 
 export type StepResult = {
-  type?: 'http' | 'grpc' | 'sse'
+  type?: 'http' | 'grpc' | 'sse' | 'delay'
   id?: string
   testId: string
   name?: string
@@ -1075,7 +1077,7 @@ async function runTest(id: string, test: Test, schemaValidator: Ajv, options?: W
           await new Promise((resolve, reject) => {
             const ev = new EventSource(step.sse?.url || '', {
               headers: step.sse?.headers,
-              rejectUnauthorized: config?.http?.rejectUnauthorized ?? true
+              rejectUnauthorized: config?.http?.rejectUnauthorized ?? false
             })
 
             const messages: MessageEvent[] = []
@@ -1180,6 +1182,11 @@ async function runTest(id: string, test: Test, schemaValidator: Ajv, options?: W
               }
             }
           })
+        }
+
+        if (step.delay) {
+          stepResult.type = 'delay'
+          await new Promise(resolve => setTimeout(resolve, parseDuration(step.delay || '5000')))
         }
 
         stepResult.passed = didChecksPass(stepResult)
