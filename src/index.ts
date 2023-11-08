@@ -14,7 +14,6 @@ import { DOMParser } from '@xmldom/xmldom'
 import { EventEmitter } from 'node:events'
 import crypto from 'crypto'
 import fs from 'fs'
-import yaml from 'js-yaml'
 import $RefParser from '@apidevtools/json-schema-ref-parser'
 import Ajv from 'ajv'
 import addFormats from 'ajv-formats'
@@ -420,17 +419,10 @@ export type CheckResultSSL = {
 
 const templateDelimiters = ['${{', '}}']
 
-// Run from YAML string
-export async function runFromYAML(yamlString: string, options?: WorkflowOptions): Promise<WorkflowResult> {
-  const workflow = yaml.load(yamlString)
-  const dereffed = await $RefParser.dereference(workflow as any) as unknown as Workflow
-  return run(dereffed, options)
-}
-
 // Run from test file
 export async function runFromFile(path: string, options?: WorkflowOptions): Promise<WorkflowResult> {
-  const testFile = await fs.promises.readFile(path)
-  return runFromYAML(testFile.toString(), { ...options, path })
+  const workflow = await $RefParser.dereference(path) as unknown as Workflow
+  return run(workflow, { ...options, path })
 }
 
 // Run workflow
