@@ -436,9 +436,9 @@ export async function run(workflow: Workflow, options?: WorkflowOptions): Promis
   addFormats(schemaValidator)
 
   // Templating for env, components, config
-  const env = { ...workflow.env, ...options?.env }
+  let env = { ...workflow.env, ...options?.env }
   if (workflow.env) {
-    workflow.env = renderObject(workflow.env, { env, secrets: options?.secrets }, { delimiters: templateDelimiters })
+    env = renderObject(env, { env, secrets: options?.secrets }, { delimiters: templateDelimiters })
   }
 
   if (workflow.components) {
@@ -460,7 +460,7 @@ export async function run(workflow: Workflow, options?: WorkflowOptions): Promis
   const limit = pLimit(concurrency <= 0 ? 1 : concurrency)
 
   const input: Promise<TestResult>[] = []
-  Object.entries(workflow.tests).map(([id, test]) => input.push(limit(() => runTest(id, test, schemaValidator, options, workflow.config, workflow.env))))
+  Object.entries(workflow.tests).map(([id, test]) => input.push(limit(() => runTest(id, test, schemaValidator, options, workflow.config, env))))
 
   const testResults = await Promise.all(input)
   const workflowResult: WorkflowResult = {
