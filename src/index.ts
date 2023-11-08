@@ -35,6 +35,10 @@ export type Workflow = {
   version: string
   name: string
   env?: WorkflowEnv
+  /**
+   * @deprecated Import files using `$refs` instead.
+  */
+  include?: string[]
   tests: Tests
   components?: WorkflowComponents
   config?: WorkflowConfig
@@ -443,6 +447,13 @@ export async function run(workflow: Workflow, options?: WorkflowOptions): Promis
 
   if (workflow.config) {
     workflow.config = renderObject(workflow.config, { env, secrets: options?.secrets }, { delimiters: templateDelimiters })
+  }
+
+  if (workflow.include) {
+    for (const workflowPath of workflow.include) {
+      const includedFile = await $RefParser.dereference(path.join(path.dirname(options?.path || __dirname), workflowPath)) as unknown as Workflow
+      workflow.tests = { ...workflow.tests, ...includedFile.tests }
+    }
   }
 
   const concurrency = options?.concurrency || workflow.config?.concurrency || Object.keys(workflow.tests).length
