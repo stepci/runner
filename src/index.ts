@@ -529,6 +529,7 @@ async function runTest(id: string, test: Test, schemaValidator: Ajv, options?: W
       stepResult.skipped = true
     } else if (step.if && !checkCondition(step.if, { captures, env: { ...env, ...test.env } })) {
       stepResult.skipped = true
+      stepResult.errorMessage = 'Step was skipped because the condition was unmet'
     } else {
       try {
         step = renderObject(step, {
