@@ -1,3 +1,5 @@
+import fs from 'fs'
+import yaml from 'js-yaml'
 import $RefParser from '@apidevtools/json-schema-ref-parser'
 import { runPhases, Phase } from 'phasic'
 import { quantile, mean, min, max, median } from 'simple-statistics'
@@ -72,8 +74,10 @@ function metricsResult (numbers: number[]): LoadTestMetric {
 }
 
 export async function loadTestFromFile (path: string, options?: WorkflowOptions): Promise<LoadTestResult> {
-  const workflow = await $RefParser.dereference(path) as unknown as Workflow
-  return loadTest(workflow, { ...options, path })
+  const testFile = await fs.promises.readFile(path)
+  const workflow = yaml.load(testFile.toString())
+  const dereffed = await $RefParser.dereference(workflow as any) as unknown as Workflow
+  return loadTest(dereffed, { ...options, path })
 }
 
 // Load-testing functionality
