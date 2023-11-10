@@ -2,7 +2,7 @@ import got, { Method, Headers, PlainResponse } from 'got'
 import { ProxyAgent } from 'proxy-agent'
 import EventSource from 'eventsource'
 import { makeRequest, gRPCRequestMetadata } from 'cool-grpc'
-import { CookieJar } from 'tough-cookie'
+import { CookieJar, Cookie } from 'tough-cookie'
 import { renderObject } from 'liquidless'
 import { fake } from 'liquidless-faker'
 import { naughtystring } from 'liquidless-naughtystrings'
@@ -166,7 +166,7 @@ export type gRPCStep = {
   host: string
   service: string
   method: string
-  data: object
+  data?: object | object[]
   metadata?: gRPCRequestMetadata
   auth?: gRPCStepAuth
   captures?: gRPCStepCaptures
@@ -310,6 +310,8 @@ export type StepResult = {
   testId: string
   name?: string
   checks?: StepCheckResult
+  captures?: CapturesStorage
+  cookies?: Cookie.Serialized[]
   errored: boolean
   errorMessage?: string
   passed: boolean
@@ -345,7 +347,7 @@ export type gRPCStepRequest = {
   service: string
   method: string
   metadata?: gRPCRequestMetadata
-  data: object
+  data?: object | object[]
   tls?: Credential['tls']
   size?: number
 }
@@ -1233,6 +1235,8 @@ async function runTest(id: string, test: Test, schemaValidator: Ajv, options?: W
     stepResult.co2 = stepResult.response?.co2 || 0
     stepResult.bytesSent = stepResult.request?.size || 0
     stepResult.bytesReceived = stepResult.response?.size || 0
+    stepResult.captures = Object.keys(captures).length > 0 ? captures : undefined
+    stepResult.cookies = Object.keys(cookies.toJSON().cookies).length > 0 ? cookies.toJSON().cookies : undefined
     testResult.steps.push(stepResult)
     previous = stepResult
 
