@@ -225,7 +225,7 @@ export type gRPCStepCapture = {
 }
 
 export type HTTPStepCheck = {
-  status?: number | Matcher[]
+  status?: string | number | Matcher[]
   statusText?: string | Matcher[]
   redirected?: boolean
   redirects?: string[]
@@ -576,6 +576,11 @@ async function runTest(id: string, test: Test, schemaValidator: Ajv, options?: W
 
           //  JSON
           if (step.http.json) {
+            if (!step.http.headers) step.http.headers = {}
+            if (!step.http.headers['Content-Type']) {
+              step.http.headers['Content-Type'] = 'application/json'
+            }
+
             requestBody = JSON.stringify(step.http.json)
           }
 
