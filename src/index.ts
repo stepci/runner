@@ -157,7 +157,9 @@ export type SSEStep = {
   params?: HTTPStepParams
   auth?: Credential
   json?: object
-  check?: SSEStepCheck[]
+  check?: {
+    messages?: SSEStepCheck[]
+  }
   timeout?: number
 }
 
@@ -1151,7 +1153,7 @@ async function runTest(id: string, test: Test, schemaValidator: Ajv, options?: W
               if (!stepResult.checks) stepResult.checks = {}
               if (!stepResult.checks.messages) stepResult.checks.messages = {}
 
-              step.sse?.check.forEach(check => {
+              step.sse?.check.messages?.forEach(check => {
                 (stepResult.checks?.messages as any)[check.id] = {
                   expected: check.body || check.json || check.jsonpath || check.schema,
                   given: undefined,
@@ -1164,7 +1166,7 @@ async function runTest(id: string, test: Test, schemaValidator: Ajv, options?: W
               messages.push(message)
 
               if (step.sse?.check) {
-                step.sse?.check.forEach((check, id) => {
+                step.sse?.check.messages?.forEach((check, id) => {
                   if (check.body) {
                     const result = checkResult(message.data, check.body)
                     if (result.passed && stepResult.checks?.messages) stepResult.checks.messages[check.id] = result
