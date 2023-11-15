@@ -1,15 +1,20 @@
-import { StepCheckCaptures, StepCheckJSONPath, StepCheckMatcher, StepCheckPerformance } from "..";
-import { CapturesStorage } from "./../utils/runner";
-import { TLSCertificate, getTLSCertificate } from "./../utils/auth";
+import {
+  StepCheckCaptures,
+  StepCheckJSONPath,
+  StepCheckMatcher,
+  StepCheckPerformance,
+} from '..'
+import { CapturesStorage } from './../utils/runner'
+import { TLSCertificate, getTLSCertificate } from './../utils/auth'
 import { Credential } from './../utils/auth'
 
-import path from "node:path";
-import { JSONPath } from "jsonpath-plus";
-import Ajv from "ajv";
-import { StepRunResult, WorkflowConfig, WorkflowOptions } from "..";
-import { Matcher, checkResult } from "../matcher";
-import { gRPCRequestMetadata, makeRequest } from "cool-grpc";
-const { co2 } = require("@tgwf/co2");
+import path from 'node:path'
+import { JSONPath } from 'jsonpath-plus'
+import Ajv from 'ajv'
+import { StepRunResult, WorkflowConfig, WorkflowOptions } from '..'
+import { Matcher, checkResult } from '../matcher'
+import { gRPCRequestMetadata, makeRequest } from 'cool-grpc'
+const { co2 } = require('@tgwf/co2')
 
 export type gRPCStep = {
   proto: string | string[]
@@ -74,33 +79,33 @@ export default async function gRPCStep(
   config?: WorkflowConfig
 ) {
   const stepResult: StepRunResult = {
-    type: "grpc",
-  };
+    type: 'grpc',
+  }
 
-  const ssw = new co2();
+  const ssw = new co2()
 
   // Load TLS configuration from file or string
-  let tlsConfig: TLSCertificate | undefined;
+  let tlsConfig: TLSCertificate | undefined
   if (params.auth) {
     tlsConfig = await getTLSCertificate(params.auth.tls, {
       workflowPath: options?.path,
-    });
+    })
   }
 
-  const protos: string[] = [];
+  const protos: string[] = []
   if (config?.grpc?.proto) {
-    protos.push(...config.grpc.proto);
+    protos.push(...config.grpc.proto)
   }
 
   if (params.proto) {
     protos.push(
       ...(Array.isArray(params.proto) ? params.proto : [params.proto])
-    );
+    )
   }
 
   const proto = protos.map((p) =>
     path.join(path.dirname(options?.path || __dirname), p)
-  );
+  )
 
   const request: gRPCStepRequest = {
     proto,
@@ -109,7 +114,7 @@ export default async function gRPCStep(
     service: params.service,
     method: params.method,
     data: params.data,
-  };
+  }
 
   const { metadata, statusCode, statusMessage, data, size } = await makeRequest(
     proto,
@@ -117,15 +122,15 @@ export default async function gRPCStep(
       ...request,
       tls: tlsConfig,
       beforeRequest: (req) => {
-        options?.ee?.emit("step:grpc_request", request);
+        options?.ee?.emit('step:grpc_request', request)
       },
       afterResponse: (res) => {
-        options?.ee?.emit("step:grpc_response", res);
+        options?.ee?.emit('step:grpc_response', res)
       },
     }
-  );
+  )
 
-  stepResult.request = request;
+  stepResult.request = request
   stepResult.response = {
     body: data,
     co2: ssw.perByte(size),
@@ -133,76 +138,76 @@ export default async function gRPCStep(
     status: statusCode,
     statusText: statusMessage,
     metadata,
-  };
+  }
 
   // Captures
   if (params.captures) {
     for (const name in params.captures) {
-      const capture = params.captures[name];
+      const capture = params.captures[name]
       if (capture.jsonpath) {
-        captures[name] = JSONPath({ path: capture.jsonpath, json: data })[0];
+        captures[name] = JSONPath({ path: capture.jsonpath, json: data })[0]
       }
     }
   }
 
   if (params.check) {
-    stepResult.checks = {};
+    stepResult.checks = {}
 
     // Check JSON
     if (params.check.json) {
-      stepResult.checks.json = checkResult(data, params.check.json);
+      stepResult.checks.json = checkResult(data, params.check.json)
     }
 
     // Check Schema
     if (params.check.schema) {
-      const validate = schemaValidator.compile(params.check.schema);
+      const validate = schemaValidator.compile(params.check.schema)
       stepResult.checks.schema = {
         expected: params.check.schema,
         given: data,
         passed: validate(data),
-      };
+      }
     }
 
     // Check JSONPath
     if (params.check.jsonpath) {
-      stepResult.checks.jsonpath = {};
+      stepResult.checks.jsonpath = {}
 
       for (const path in params.check.jsonpath) {
-        const result = JSONPath({ path, json: data });
+        const result = JSONPath({ path, json: data })
         stepResult.checks.jsonpath[path] = checkResult(
           result[0],
           params.check.jsonpath[path]
-        );
+        )
       }
     }
 
     // Check captures
     if (params.check.captures) {
-      stepResult.checks.captures = {};
+      stepResult.checks.captures = {}
 
       for (const capture in params.check.captures) {
         stepResult.checks.captures[capture] = checkResult(
           captures[capture],
           params.check.captures[capture]
-        );
+        )
       }
     }
 
     // Check performance
     if (params.check.performance) {
-      stepResult.checks.performance = {};
+      stepResult.checks.performance = {}
 
       if (params.check.performance.total) {
         stepResult.checks.performance.total = checkResult(
           stepResult.response?.duration,
           params.check.performance.total
-        );
+        )
       }
     }
 
     // Check byte size
     if (params.check.size) {
-      stepResult.checks.size = checkResult(size, params.check.size);
+      stepResult.checks.size = checkResult(size, params.check.size)
     }
 
     // Check co2 emissions
@@ -210,9 +215,9 @@ export default async function gRPCStep(
       stepResult.checks.co2 = checkResult(
         stepResult.response?.co2,
         params.check.co2
-      );
+      )
     }
   }
 
-  return stepResult;
+  return stepResult
 }

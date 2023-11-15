@@ -20,6 +20,7 @@ import runHTTPStep, { HTTPStep, HTTPStepRequest, HTTPStepResponse } from './step
 import runGRPCStep, { gRPCStep, gRPCStepRequest, gRPCStepResponse } from './steps/grpc'
 import runSSEStep, { SSEStep, SSEStepRequest, SSEStepResponse } from './steps/sse'
 import runDelayStep from './steps/delay'
+import runPluginStep, { PluginStep } from './steps/plugin'
 
 export type Workflow = {
   version: string
@@ -107,6 +108,7 @@ export type Step = {
   grpc?: gRPCStep
   sse?: SSEStep
   delay?: string
+  plugin?: PluginStep
 }
 
 export type StepCheckValue = {
@@ -315,6 +317,10 @@ async function runTest(id: string, test: Test, schemaValidator: Ajv, options?: W
 
         if (step.delay) {
           runResult = await runDelayStep(step.delay)
+        }
+
+        if (step.plugin) {
+          runResult = await runPluginStep(step.plugin, captures, cookies, schemaValidator, options, config)
         }
 
         stepResult = { ...stepResult, ...runResult }

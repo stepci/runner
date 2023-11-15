@@ -1,17 +1,15 @@
-import parseDuration from "parse-duration";
-import { StepRunResult } from "..";
+import parseDuration from 'parse-duration'
+import { StepRunResult } from '..'
 
-export default async function DelayStep(
-  params: string,
-) {
+export default async function DelayStep(params: string) {
   const stepResult: StepRunResult = {
-    type: "delay",
-  };
+    type: 'delay',
+  }
 
-  stepResult.type = "delay";
+  stepResult.type = 'delay'
   await new Promise((resolve) =>
-    setTimeout(resolve, parseDuration(params || "5000"))
-  );
+    setTimeout(resolve, parseDuration(params || '5000'))
+  )
 
-  return stepResult;
+  return stepResult
 }
