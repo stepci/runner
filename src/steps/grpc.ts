@@ -21,6 +21,7 @@ export type gRPCStep = {
   service: string
   method: string
   data?: object | object[]
+  timeout?: number
   metadata?: gRPCRequestMetadata
   auth?: gRPCStepAuth
   captures?: gRPCStepCaptures
@@ -126,6 +127,9 @@ export default async function (
       afterResponse: (res) => {
         options?.ee?.emit('step:grpc_response', res)
       },
+      options: {
+        deadline: params.timeout
+      }
     }
   )
 

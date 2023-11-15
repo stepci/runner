@@ -1,4 +1,4 @@
-import { StepResult } from '../index'
+import { StepCheckResult } from '../index'
 import { compileExpression } from 'filtrex'
 import flatten from 'flat'
 import { CookieJar } from 'tough-cookie'
@@ -24,10 +24,10 @@ export function getCookie (store: CookieJar, name: string, url: string): string 
 }
 
 // Did all checks pass?
-export function didChecksPass (stepResult: StepResult) {
-  if (!stepResult.checks) return true
+export function didChecksPass (checks?: StepCheckResult) {
+  if (!checks) return true
 
-  return Object.values(stepResult.checks as object).map(check => {
+  return Object.values(checks as object).map(check => {
     return check['passed'] ? check.passed : Object.values(check).map((c: any) => c.passed).every(passed => passed)
   })
   .every(passed => passed)
