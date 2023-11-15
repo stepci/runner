@@ -49,6 +49,7 @@
     "parse-duration": "^1.1.0",
     "phasic": "^1.0.2",
     "proxy-agent": "^6.3.1",
+    "replace-circular-object": "^1.0.1",
     "simple-statistics": "^7.8.0",
     "tough-cookie": "^4.1.2",
     "xpath": "^0.0.32"

@@ -31,6 +31,7 @@ import { parseCSV, TestData } from './utils/testdata'
 import { CapturesStorage, checkCondition, getCookie, didChecksPass } from './utils/runner'
 import { Credential, CredentialsStorage, HTTPCertificate, TLSCertificate, getAuthHeader, getClientCertificate, getTLSCertificate } from './utils/auth'
 import { tryFile, StepFile } from './utils/files'
+import replaceCircularObject from 'replace-circular-object';
 
 export type Workflow = {
   version: string
@@ -453,7 +454,9 @@ export async function run(workflow: Workflow, options?: WorkflowOptions): Promis
     env = renderObject(env, { env, secrets: options?.secrets }, { delimiters: templateDelimiters })
   }
 
+  workflow.tests = replaceCircularObject(workflow.tests) as Tests;
   if (workflow.components) {
+    workflow.components = replaceCircularObject(workflow.components) as WorkflowComponents;
     workflow.components = renderObject(workflow.components, { env, secrets: options?.secrets }, { delimiters: templateDelimiters })
   }
 
