@@ -71,7 +71,7 @@ export type gRPCStepResponse = {
   metadata?: object
 }
 
-export default async function gRPCStep(
+export default async function (
   params: gRPCStep,
   captures: CapturesStorage,
   schemaValidator: Ajv,

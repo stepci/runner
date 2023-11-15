@@ -51,7 +51,7 @@ export type SSEStepResponse = {
   co2: number
 }
 
-export default async function SSEStep(
+export default async function (
   params: SSEStep,
   captures: CapturesStorage,
   schemaValidator: Ajv,

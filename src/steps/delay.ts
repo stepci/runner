@@ -1,7 +1,7 @@
 import parseDuration from 'parse-duration'
 import { StepRunResult } from '..'
 
-export default async function DelayStep(params: string) {
+export default async function (params: string) {
   const stepResult: StepRunResult = {
     type: 'delay',
   }

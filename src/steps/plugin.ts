@@ -9,7 +9,7 @@ export type PluginStep = {
   check?: object
 }
 
-export default async function SSEStep(
+export default async function (
   params: PluginStep,
   captures: CapturesStorage,
   cookies: CookieJar,
@@ -18,7 +18,7 @@ export default async function SSEStep(
   config?: WorkflowConfig
 ) {
   const plugin = require(params.id)
-  return await plugin.default(
+  return plugin.default(
     params.options,
     captures,
     cookies,

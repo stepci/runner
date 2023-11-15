@@ -34,25 +34,28 @@ import {
 import { Matcher, checkResult } from '../matcher'
 import { CookieJar } from 'tough-cookie'
 
-export type HTTPStep = {
+export type HTTPStepBase = {
   url: string
   method: string
   headers?: HTTPStepHeaders
   params?: HTTPStepParams
   cookies?: HTTPStepCookies
-  body?: string | StepFile
-  form?: HTTPStepForm
-  formData?: HTTPStepMultiPartForm
   auth?: Credential
-  json?: object
-  graphql?: HTTPStepGraphQL
-  trpc?: HTTPStepTRPC
   captures?: HTTPStepCaptures
   check?: HTTPStepCheck
   followRedirects?: boolean
   timeout?: number
   retries?: number
 }
+
+export type HTTPStep = {
+  body?: string | StepFile
+  form?: HTTPStepForm
+  formData?: HTTPStepMultiPartForm
+  json?: object
+  graphql?: HTTPStepGraphQL
+  trpc?: HTTPStepTRPC
+} & HTTPStepBase
 
 export type HTTPStepTRPC = {
   query?:
@@ -167,7 +170,7 @@ export type StepResponseSSL = {
   daysUntilExpiration: number
 }
 
-export default async function HTTPStep(
+export default async function (
   params: HTTPStep,
   captures: CapturesStorage,
   cookies: CookieJar,

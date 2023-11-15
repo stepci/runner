@@ -21,6 +21,8 @@ import runGRPCStep, { gRPCStep, gRPCStepRequest, gRPCStepResponse } from './step
 import runSSEStep, { SSEStep, SSEStepRequest, SSEStepResponse } from './steps/sse'
 import runDelayStep from './steps/delay'
 import runPluginStep, { PluginStep } from './steps/plugin'
+import runTRPCStep, { tRPCStep } from './steps/trpc'
+import runGraphQLStep, { GraphQLStep } from './steps/graphql'
 
 export type Workflow = {
   version: string
@@ -105,6 +107,8 @@ export type Step = {
   name?: string
   if?: string
   http?: HTTPStep
+  trpc?: tRPCStep
+  graphql?: GraphQLStep
   grpc?: gRPCStep
   sse?: SSEStep
   delay?: string
@@ -154,6 +158,7 @@ export type StepResult = {
   passed: boolean
   skipped: boolean
   timestamp: Date
+  responseTime: number
   duration: number
   co2: number
   bytesSent: number
@@ -272,6 +277,7 @@ async function runTest(id: string, test: Test, schemaValidator: Ajv, options?: W
       errored: false,
       skipped: false,
       duration: 0,
+      responseTime: 0,
       bytesSent: 0,
       bytesReceived: 0,
       co2: 0
@@ -307,6 +313,14 @@ async function runTest(id: string, test: Test, schemaValidator: Ajv, options?: W
           runResult = await runHTTPStep(step.http, captures, cookies, schemaValidator, options)
         }
 
+        if (step.trpc) {
+          runResult = await runTRPCStep(step.trpc, captures, cookies, schemaValidator, options)
+        }
+
+        if (step.graphql) {
+          runResult = await runGraphQLStep(step.graphql, captures, cookies, schemaValidator, options)
+        }
+
         if (step.grpc) {
           runResult = await runGRPCStep(step.grpc, captures, schemaValidator, options)
         }
@@ -334,6 +348,7 @@ async function runTest(id: string, test: Test, schemaValidator: Ajv, options?: W
     }
 
     stepResult.duration = Date.now() - stepResult.timestamp.valueOf()
+    stepResult.responseTime = stepResult.response?.duration || 0
     stepResult.co2 = stepResult.response?.co2 || 0
     stepResult.bytesSent = stepResult.request?.size || 0
     stepResult.bytesReceived = stepResult.response?.size || 0
