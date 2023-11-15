@@ -10,17 +10,16 @@ import Ajv from 'ajv'
 import addFormats from 'ajv-formats'
 import pLimit from 'p-limit'
 import path from 'node:path'
-const { co2 } = require('@tgwf/co2')
 import { Phase } from 'phasic'
 import { Matcher, CheckResult, CheckResults } from './matcher'
 import { LoadTestCheck } from './loadtesting'
 import { parseCSV, TestData } from './utils/testdata'
 import { CapturesStorage, checkCondition, didChecksPass } from './utils/runner'
-import { Credential, CredentialsStorage } from './utils/auth'
+import { CredentialsStorage } from './utils/auth'
 import runHTTPStep, { HTTPStep, HTTPStepRequest, HTTPStepResponse } from './steps/http'
 import runGRPCStep, { gRPCStep, gRPCStepRequest, gRPCStepResponse } from './steps/grpc'
 import runSSEStep, { SSEStep, SSEStepRequest, SSEStepResponse } from './steps/sse'
-import DelayStep from './steps/delay'
+import runDelayStep from './steps/delay'
 
 export type Workflow = {
   version: string
@@ -154,7 +153,6 @@ export type StepResult = {
   skipped: boolean
   timestamp: Date
   duration: number
-  responseTime: number
   co2: number
   bytesSent: number
   bytesReceived: number
@@ -272,7 +270,6 @@ async function runTest(id: string, test: Test, schemaValidator: Ajv, options?: W
       errored: false,
       skipped: false,
       duration: 0,
-      responseTime: 0,
       bytesSent: 0,
       bytesReceived: 0,
       co2: 0
@@ -317,7 +314,7 @@ async function runTest(id: string, test: Test, schemaValidator: Ajv, options?: W
         }
 
         if (step.delay) {
-          runResult = await DelayStep(step.delay)
+          runResult = await runDelayStep(step.delay)
         }
 
         stepResult = { ...stepResult, ...runResult }
@@ -331,7 +328,6 @@ async function runTest(id: string, test: Test, schemaValidator: Ajv, options?: W
     }
 
     stepResult.duration = Date.now() - stepResult.timestamp.valueOf()
-    stepResult.responseTime = stepResult.response?.duration || 0
     stepResult.co2 = stepResult.response?.co2 || 0
     stepResult.bytesSent = stepResult.request?.size || 0
     stepResult.bytesReceived = stepResult.response?.size || 0
