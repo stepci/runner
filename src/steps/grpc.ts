@@ -1,3 +1,8 @@
+import path from 'node:path'
+import { JSONPath } from 'jsonpath-plus'
+import Ajv from 'ajv'
+import { gRPCRequestMetadata, makeRequest } from 'cool-grpc'
+const { co2 } = require('@tgwf/co2')
 import {
   StepCheckCaptures,
   StepCheckJSONPath,
@@ -7,14 +12,8 @@ import {
 import { CapturesStorage } from './../utils/runner'
 import { TLSCertificate, getTLSCertificate } from './../utils/auth'
 import { Credential } from './../utils/auth'
-
-import path from 'node:path'
-import { JSONPath } from 'jsonpath-plus'
-import Ajv from 'ajv'
 import { StepRunResult, WorkflowConfig, WorkflowOptions } from '..'
 import { Matcher, checkResult } from '../matcher'
-import { gRPCRequestMetadata, makeRequest } from 'cool-grpc'
-const { co2 } = require('@tgwf/co2')
 
 export type gRPCStep = {
   proto: string | string[]

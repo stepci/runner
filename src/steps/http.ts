@@ -3,9 +3,16 @@ import { ProxyAgent } from 'proxy-agent'
 import xpath from 'xpath'
 import * as cheerio from 'cheerio'
 import { DOMParser } from '@xmldom/xmldom'
-import crypto from 'crypto'
+import { JSONPath } from 'jsonpath-plus'
+const { co2 } = require('@tgwf/co2')
+import FormData from 'form-data'
+import Ajv from 'ajv'
+import { CookieJar } from 'tough-cookie'
+import fs from 'fs'
 import { PeerCertificate, TLSSocket } from 'node:tls'
+import crypto from 'node:crypto'
 import { Agent } from 'node:https'
+import path from 'node:path'
 import { tryFile, StepFile } from './../utils/files'
 import { CapturesStorage, getCookie } from './../utils/runner'
 import {
@@ -14,13 +21,6 @@ import {
   getClientCertificate,
   Credential,
 } from './../utils/auth'
-import path from 'node:path'
-import fs from 'fs'
-import { JSONPath } from 'jsonpath-plus'
-const { co2 } = require('@tgwf/co2')
-import FormData from 'form-data'
-
-import Ajv from 'ajv'
 import {
   StepCheckCaptures,
   StepCheckJSONPath,
@@ -32,7 +32,6 @@ import {
   WorkflowOptions,
 } from '..'
 import { Matcher, checkResult } from '../matcher'
-import { CookieJar } from 'tough-cookie'
 
 export type HTTPStepBase = {
   url: string

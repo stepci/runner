@@ -1,8 +1,9 @@
+import EventSource from 'eventsource'
+import { JSONPath } from 'jsonpath-plus'
+const { co2 } = require('@tgwf/co2')
 import { CapturesStorage } from './../utils/runner'
 import { CheckResult, CheckResults, Matcher } from '../matcher'
 
-import EventSource from 'eventsource'
-import { JSONPath } from 'jsonpath-plus'
 import Ajv from 'ajv'
 import {
   StepCheckJSONPath,
@@ -12,7 +13,6 @@ import {
   WorkflowOptions,
 } from '..'
 import { checkResult } from '../matcher'
-const { co2 } = require('@tgwf/co2')
 import { Credential, getAuthHeader } from './../utils/auth'
 import { HTTPStepHeaders, HTTPStepParams } from './http'
 
