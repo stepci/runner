@@ -23,6 +23,7 @@ export default async function (
     captures,
     cookies,
     schemaValidator,
-    options
+    options,
+    config
   )
 }
