@@ -270,66 +270,20 @@ async function runTest(id: string, test: Test, schemaValidator: Ajv, options?: W
   }
 
   for (let step of test.steps) {
-    let stepResult: StepResult = {
-      id: step.id,
-      testId: id,
-      name: step.name,
-      timestamp: new Date(),
-      passed: true,
-      errored: false,
-      skipped: false,
-      duration: 0,
-      responseTime: 0,
-      bytesSent: 0,
-      bytesReceived: 0,
-      retries: 0,
-      co2: 0
-    }
+    const tryStep = async () => runStep(previous, step, id, test, captures, cookies, schemaValidator, testData, options, config, env)
+    let stepResult = await tryStep()
 
-    // Skip current step is the previous one failed or condition was unmet
-    if (!config?.continueOnFail && (previous && !previous.passed)) {
-      stepResult.passed = false
-      stepResult.errorMessage = 'Step was skipped because previous one failed'
-      stepResult.skipped = true
-    } else if (step.if && !checkCondition(step.if, { captures, env: { ...env, ...test.env } })) {
-      stepResult.skipped = true
-      stepResult.errorMessage = 'Step was skipped because the condition was unmet'
-    } else {
-      try {
-        const runFunc = async () => runStep(step, test, captures, cookies, testData, schemaValidator, options, config, env)
-        let stepRun = await runStep(step, test, captures, cookies, testData, schemaValidator, options, config, env)
-
-        if (step.retries && !didChecksPass(stepRun?.checks)) {
-          for (let i = 0; i < step.retries; i++) {
-            stepResult.retries = i + 1
-            stepRun = await runFunc()
-            if (didChecksPass(stepRun?.checks)) break
-          }
-        }
-
-        stepResult.passed = didChecksPass(stepRun?.checks)
-        stepResult.type = stepRun?.type
-        stepResult.request = stepRun?.request
-        stepResult.response = stepRun?.response
-        stepResult.checks = stepRun?.checks
-        stepResult.duration = Date.now() - stepResult.timestamp.valueOf()
-        stepResult.responseTime = stepRun?.response?.duration || 0
-        stepResult.co2 = stepRun?.response?.co2 || 0
-        stepResult.bytesSent = stepRun?.request?.size || 0
-        stepResult.bytesReceived = stepRun?.response?.size || 0
-        stepResult.captures = Object.keys(captures).length > 0 ? captures : undefined
-        stepResult.cookies = Object.keys(cookies.toJSON().cookies).length > 0 ? cookies.toJSON().cookies : undefined
-      } catch (error) {
-        stepResult.passed = false
-        stepResult.errored = true
-        stepResult.errorMessage = (error as Error).message
-        options?.ee?.emit('step:error', error)
+    // Retries
+    if ((stepResult.errored || !stepResult.passed) && step.retries && step.retries > 0) {
+      for (let i = 0; i < step.retries; i++) {
+        stepResult = await tryStep()
+        if (stepResult.passed) break
       }
-
-      options?.ee?.emit('step:result', stepResult)
-      testResult.steps.push(stepResult)
-      previous = stepResult
     }
+
+    testResult.steps.push(stepResult)
+    previous = stepResult
+    options?.ee?.emit('step:result', stepResult)
   }
 
   testResult.duration = Date.now() - testResult.timestamp.valueOf()
@@ -342,50 +296,95 @@ async function runTest(id: string, test: Test, schemaValidator: Ajv, options?: W
   return testResult
 }
 
-async function runStep (step: Step, test: Test, captures: CapturesStorage, cookies: CookieJar, testData: object, schemaValidator: Ajv, options?: WorkflowOptions, config?: WorkflowConfig, env?: object){
-  step = renderObject(step, {
-    captures,
-    env: { ...env, ...test.env },
-    secrets: options?.secrets,
-    testdata: testData
-  },
-  {
-    filters: {
-      fake,
-      naughtystring
-    },
-    delimiters: templateDelimiters
-  })
+async function runStep (previous: StepResult | undefined, step: Step, id: string, test: Test, captures: CapturesStorage, cookies: CookieJar, schemaValidator: Ajv, testData: object, options?: WorkflowOptions, config?: WorkflowConfig, env?: object) {
+  let stepResult: StepResult = {
+    id: step.id,
+    testId: id,
+    name: step.name,
+    timestamp: new Date(),
+    passed: true,
+    errored: false,
+    skipped: false,
+    duration: 0,
+    responseTime: 0,
+    bytesSent: 0,
+    bytesReceived: 0,
+    co2: 0
+  }
 
   let runResult: StepRunResult | undefined
 
-  if (step.http) {
-    runResult = await runHTTPStep(step.http, captures, cookies, schemaValidator, options)
+  // Skip current step is the previous one failed or condition was unmet
+  if (!config?.continueOnFail && (previous && !previous.passed)) {
+    stepResult.passed = false
+    stepResult.errorMessage = 'Step was skipped because previous one failed'
+    stepResult.skipped = true
+  } else if (step.if && !checkCondition(step.if, { captures, env: { ...env, ...test.env } })) {
+    stepResult.skipped = true
+    stepResult.errorMessage = 'Step was skipped because the condition was unmet'
+  } else {
+    try {
+      step = renderObject(step, {
+        captures,
+        env: { ...env, ...test.env },
+        secrets: options?.secrets,
+        testdata: testData
+      },
+      {
+        filters: {
+          fake,
+          naughtystring
+        },
+        delimiters: templateDelimiters
+      })
+
+      if (step.http) {
+        runResult = await runHTTPStep(step.http, captures, cookies, schemaValidator, options)
+      }
+
+      if (step.trpc) {
+        runResult = await runTRPCStep(step.trpc, captures, cookies, schemaValidator, options)
+      }
+
+      if (step.graphql) {
+        runResult = await runGraphQLStep(step.graphql, captures, cookies, schemaValidator, options)
+      }
+
+      if (step.grpc) {
+        runResult = await runGRPCStep(step.grpc, captures, schemaValidator, options)
+      }
+
+      if (step.sse) {
+        runResult = await runSSEStep(step.sse, captures, schemaValidator, options)
+      }
+
+      if (step.delay) {
+        runResult = await runDelayStep(step.delay)
+      }
+
+      if (step.plugin) {
+        runResult = await runPluginStep(step.plugin, captures, cookies, schemaValidator, options, config)
+      }
+
+      stepResult.passed = didChecksPass(runResult?.checks)
+    } catch (error) {
+      stepResult.passed = false
+      stepResult.errored = true
+      stepResult.errorMessage = (error as Error).message
+      options?.ee?.emit('step:error', error)
+    }
   }
 
-  if (step.trpc) {
-    runResult = await runTRPCStep(step.trpc, captures, cookies, schemaValidator, options)
-  }
-
-  if (step.graphql) {
-    runResult = await runGraphQLStep(step.graphql, captures, cookies, schemaValidator, options)
-  }
-
-  if (step.grpc) {
-    runResult = await runGRPCStep(step.grpc, captures, schemaValidator, options)
-  }
-
-  if (step.sse) {
-    runResult = await runSSEStep(step.sse, captures, schemaValidator, options)
-  }
-
-  if (step.delay) {
-    runResult = await runDelayStep(step.delay)
-  }
-
-  if (step.plugin) {
-    runResult = await runPluginStep(step.plugin, captures, cookies, schemaValidator, options, config)
-  }
-
-  return runResult
+  stepResult.type = runResult?.type
+  stepResult.request = runResult?.request
+  stepResult.response = runResult?.response
+  stepResult.checks = runResult?.checks
+  stepResult.responseTime = runResult?.response?.duration || 0
+  stepResult.co2 = runResult?.response?.co2 || 0
+  stepResult.bytesSent = runResult?.request?.size || 0
+  stepResult.bytesReceived = runResult?.response?.size || 0
+  stepResult.duration = Date.now() - stepResult.timestamp.valueOf()
+  stepResult.captures = Object.keys(captures).length > 0 ? captures : undefined
+  stepResult.cookies = Object.keys(cookies.toJSON().cookies).length > 0 ? cookies.toJSON().cookies : undefined
+  return stepResult
 }
