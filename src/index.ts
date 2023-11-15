@@ -23,6 +23,7 @@ import runDelayStep from './steps/delay'
 import runPluginStep, { PluginStep } from './steps/plugin'
 import runTRPCStep, { tRPCStep } from './steps/trpc'
 import runGraphQLStep, { GraphQLStep } from './steps/graphql'
+import parseDuration from 'parse-duration'
 
 export type Workflow = {
   version: string
@@ -105,7 +106,10 @@ export type Tests = {
 export type Step = {
   id?: string
   name?: string
-  retries?: number
+  retries?: {
+    count: number
+    interval?: string | number
+  }
   if?: string
   http?: HTTPStep
   trpc?: tRPCStep
@@ -274,8 +278,12 @@ async function runTest(id: string, test: Test, schemaValidator: Ajv, options?: W
     let stepResult = await tryStep()
 
     // Retries
-    if ((stepResult.errored || !stepResult.passed) && step.retries && step.retries > 0) {
-      for (let i = 0; i < step.retries; i++) {
+    if ((stepResult.errored || !stepResult.passed) && step.retries && step.retries.count > 0) {
+      for (let i = 0; i < step.retries.count; i++) {
+        await new Promise(resolve => {
+          setTimeout(resolve, typeof step.retries?.interval === 'string' ? parseDuration(step.retries?.interval) : step.retries?.interval)
+        })
+
         stepResult = await tryStep()
         if (stepResult.passed) break
       }
