@@ -297,18 +297,17 @@ async function runTest(id: string, test: Test, schemaValidator: Ajv, options?: W
     } else {
       try {
         const runFunc = async () => runStep(step, test, captures, cookies, testData, schemaValidator, options, config, env)
-        const stepRun = await runFunc()
+        let stepRun = await runStep(step, test, captures, cookies, testData, schemaValidator, options, config, env)
 
-        stepResult.passed = didChecksPass(stepRun?.checks)
-
-        if (step.retries && !stepResult.passed) {
+        if (step.retries && !didChecksPass(stepRun?.checks)) {
           for (let i = 0; i < step.retries; i++) {
             stepResult.retries = i + 1
-            const stepRetry = await runFunc()
-            if (didChecksPass(stepRetry?.checks)) break
+            stepRun = await runFunc()
+            if (didChecksPass(stepRun?.checks)) break
           }
         }
 
+        stepResult.passed = didChecksPass(stepRun?.checks)
         stepResult.type = stepRun?.type
         stepResult.request = stepRun?.request
         stepResult.response = stepRun?.response
