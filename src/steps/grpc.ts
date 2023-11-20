@@ -1,6 +1,7 @@
 import path from 'node:path'
 import { JSONPath } from 'jsonpath-plus'
 import Ajv from 'ajv'
+import parseDuration from 'parse-duration'
 import { gRPCRequestMetadata, makeRequest } from 'cool-grpc'
 const { co2 } = require('@tgwf/co2')
 import {
@@ -21,7 +22,7 @@ export type gRPCStep = {
   service: string
   method: string
   data?: object | object[]
-  timeout?: number
+  timeout?: string | number
   metadata?: gRPCRequestMetadata
   auth?: gRPCStepAuth
   captures?: gRPCStepCaptures
@@ -128,7 +129,7 @@ export default async function (
         options?.ee?.emit('step:grpc_response', res)
       },
       options: {
-        deadline: params.timeout
+        deadline: typeof params.timeout === 'string' ? parseDuration(params.timeout) : params.timeout
       }
     }
   )

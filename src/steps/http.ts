@@ -1,4 +1,5 @@
 import got, { Method, Headers, PlainResponse } from 'got'
+import parseDuration from 'parse-duration'
 import { ProxyAgent } from 'proxy-agent'
 import xpath from 'xpath'
 import * as cheerio from 'cheerio'
@@ -43,7 +44,7 @@ export type HTTPStepBase = {
   captures?: HTTPStepCaptures
   check?: HTTPStepCheck
   followRedirects?: boolean
-  timeout?: number
+  timeout?: string | number
   retries?: number
 }
 
@@ -334,7 +335,7 @@ export default async function (
       : undefined,
     throwHttpErrors: false,
     followRedirect: params.followRedirects ?? true,
-    timeout: params.timeout,
+    timeout: typeof params.timeout === 'string' ? parseDuration(params.timeout) : params.timeout,
     retry: params.retries ?? 0,
     cookieJar: cookies,
     http2: config?.http?.http2 ?? false,
