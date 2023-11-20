@@ -5,7 +5,7 @@ import { WorkflowConfig, WorkflowOptions } from '..'
 
 export type PluginStep = {
   id: string
-  options?: object
+  params?: object
   check?: object
 }
 
@@ -19,7 +19,7 @@ export default async function (
 ) {
   const plugin = require(params.id)
   return plugin.default(
-    params.options,
+    params,
     captures,
     cookies,
     schemaValidator,
