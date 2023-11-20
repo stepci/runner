@@ -463,8 +463,9 @@ export async function run(workflow: Workflow, options?: WorkflowOptions): Promis
 
   if (workflow.include) {
     for (const workflowPath of workflow.include) {
-      const includedFile = await $RefParser.dereference(path.join(path.dirname(options?.path || __dirname), workflowPath)) as unknown as Workflow
-      workflow.tests = { ...workflow.tests, ...includedFile.tests }
+      const testFile = await fs.promises.readFile(path.join(path.dirname(options?.path || __dirname), workflowPath))
+      const test = yaml.load(testFile.toString()) as Workflow
+      workflow.tests = { ...workflow.tests, ...test.tests }
     }
   }
 
