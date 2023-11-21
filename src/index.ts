@@ -31,6 +31,7 @@ import { parseCSV, TestData } from './utils/testdata'
 import { CapturesStorage, checkCondition, getCookie, didChecksPass } from './utils/runner'
 import { Credential, CredentialsStorage, HTTPCertificate, TLSCertificate, getAuthHeader, getClientCertificate, getTLSCertificate } from './utils/auth'
 import { tryFile, StepFile } from './utils/files'
+import { addCustomSchemas } from './utils/schema'
 
 export type Workflow = {
   version: string
@@ -431,7 +432,11 @@ const templateDelimiters = ['${{', '}}']
 // Run from test file
 export async function runFromYAML(yamlString: string, options?: WorkflowOptions): Promise<WorkflowResult> {
   const workflow = yaml.load(yamlString)
-  const dereffed = await $RefParser.dereference(workflow as any) as unknown as Workflow
+  const dereffed = await $RefParser.dereference(workflow as any, {
+    dereference: {
+      circular: 'ignore'
+    }
+  }) as unknown as Workflow
   return run(dereffed, options)
 }
 
@@ -455,6 +460,10 @@ export async function run(workflow: Workflow, options?: WorkflowOptions): Promis
 
   if (workflow.components) {
     workflow.components = renderObject(workflow.components, { env, secrets: options?.secrets }, { delimiters: templateDelimiters })
+  }
+
+  if (workflow.components?.schemas) {
+    addCustomSchemas(schemaValidator, workflow.components.schemas)
   }
 
   if (workflow.config) {

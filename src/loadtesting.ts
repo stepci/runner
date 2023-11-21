@@ -76,7 +76,11 @@ function metricsResult (numbers: number[]): LoadTestMetric {
 export async function loadTestFromFile (path: string, options?: WorkflowOptions): Promise<LoadTestResult> {
   const testFile = await fs.promises.readFile(path)
   const workflow = yaml.load(testFile.toString())
-  const dereffed = await $RefParser.dereference(workflow as any) as unknown as Workflow
+  const dereffed = await $RefParser.dereference(workflow as any, {
+    dereference: {
+      circular: 'ignore'
+    }
+  }) as unknown as Workflow
   return loadTest(dereffed, { ...options, path })
 }
 
