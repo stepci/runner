@@ -700,7 +700,7 @@ async function runTest(id: string, test: Test, schemaValidator: Ajv, options?: W
             method: step.http.method as Method,
             headers: { ...step.http.headers },
             body: requestBody,
-            searchParams: step.http.params ? new URLSearchParams(step.http.params) : undefined,
+            searchParams: step.http.params ? paramsToString(step.http.params) : undefined,
             throwHttpErrors: false,
             followRedirect: step.http.followRedirects ?? true,
             timeout: step.http.timeout,
@@ -1268,4 +1268,55 @@ async function runTest(id: string, test: Test, schemaValidator: Ajv, options?: W
 
   options?.ee?.emit('test:result', testResult)
   return testResult
+}
+
+/**
+ * Convert an object or an array of objects in a string query parameter
+ * @param params - Object or array of objects to convert
+ * @returns String query parameter
+ * @example
+ * paramsToString({ fruits: 'banana' }); // fruits=banana'
+ * paramsToString([{ fruits: 'apple' }, { other: 'test' }]); // 'fruits=apple&other=test'
+ * paramsToString([{ fruits: ['apple', 'banana'] }, { other: 'test' }]); // 'fruits[]=apple&fruits[]=banana&other=test'
+ * paramsToString({ fruits: ['apple', 'banana'] }); // 'fruits[]=apple&fruits[]=banana'
+ * paramsToString([['fruits', 'apple']]); // 'fruits[]=apple'
+ * paramsToString([['fruits', 'apple'], ['fruits', 'banana']]); // 'fruits[]=apple&fruits[]=banana'
+ */
+function paramsToString(params: any): string {
+  try {
+    let str = '';
+    if (Array.isArray(params)) {
+      params.forEach((param) => {
+        if (Array.isArray(param)) {
+          str += processArrayParam(param);
+        } else {
+          str += processObjectParam(param);
+        }
+      });
+    } else {
+      str += processObjectParam(params);
+    }
+    return str.slice(0, -1); // Remove the trailing '&'}
+  } catch {
+    return new URLSearchParams(params).toString();
+  }
+}
+
+function processArrayParam(param: any): string {
+  const [key, value] = param;
+  return `${key}[]=${value}&`;
+}
+
+function processObjectParam(param: any): string {
+  let str = '';
+  for (const key in param) {
+    if (Array.isArray(param[key])) {
+      param[key].forEach((value: string) => {
+        str += `${key}[]=${value}&`;
+      });
+    } else {
+      str += `${key}=${param[key]}&`;
+    }
+  }
+  return str;
 }
