@@ -808,6 +808,7 @@ async function runTest(id: string, test: Test, schemaValidator: Ajv, options?: W
               }
             }
           }
+
           if (step.http.check) {
             stepResult.checks = {}
 
