@@ -660,8 +660,10 @@ async function runTest(id: string, test: Test, schemaValidator: Ajv, options?: W
               }
 
               if ((step.http.formData[field] as StepFile).file) {
-                const file = await fs.promises.readFile(path.join(path.dirname(options?.path || __dirname), (step.http.formData[field] as StepFile).file))
-                formData.append(field, file)
+                const filepath = path.join(path.dirname(options?.path || __dirname), (step.http.formData[field] as StepFile).file)
+                const file = await fs.promises.readFile(filepath)
+                const filename = path.parse(filepath).base
+                formData.append(field, file, filename)
               }
             }
 
