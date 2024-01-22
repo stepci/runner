@@ -282,14 +282,14 @@ export default async function (
       }
 
       if ((params.formData[field] as StepFile).file) {
-        const file = await fs.promises.readFile(
-          path.join(
-            path.dirname(options?.path || __dirname),
-            (params.formData[field] as StepFile).file
-          )
+        const filepath = path.join(
+          path.dirname(options?.path || __dirname),
+          (params.formData[field] as StepFile).file
         )
 
-        formData.append(field, file)
+        const file = await fs.promises.readFile(filepath)
+        const filename = path.parse(filepath).base
+        formData.append(field, file, filename)
       }
     }
 
@@ -335,7 +335,10 @@ export default async function (
       : undefined,
     throwHttpErrors: false,
     followRedirect: params.followRedirects ?? true,
-    timeout: typeof params.timeout === 'string' ? parseDuration(params.timeout) : params.timeout,
+    timeout:
+      typeof params.timeout === 'string'
+        ? parseDuration(params.timeout)
+        : params.timeout,
     retry: params.retries ?? 0,
     cookieJar: cookies,
     http2: config?.http?.http2 ?? false,
