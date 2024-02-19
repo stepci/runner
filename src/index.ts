@@ -369,11 +369,11 @@ async function runStep (previous: StepResult | undefined, step: Step, id: string
       }
 
       if (step.grpc) {
-        runResult = await runGRPCStep(step.grpc, captures, schemaValidator, options)
+        runResult = await runGRPCStep(step.grpc, captures, schemaValidator, options, config)
       }
 
       if (step.sse) {
-        runResult = await runSSEStep(step.sse, captures, schemaValidator, options)
+        runResult = await runSSEStep(step.sse, captures, schemaValidator, options, config)
       }
 
       if (step.delay) {
