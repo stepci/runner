@@ -357,15 +357,15 @@ async function runStep (previous: StepResult | undefined, step: Step, id: string
       })
 
       if (step.http) {
-        runResult = await runHTTPStep(step.http, captures, cookies, schemaValidator, options)
+        runResult = await runHTTPStep(step.http, captures, cookies, schemaValidator, options, config)
       }
 
       if (step.trpc) {
-        runResult = await runTRPCStep(step.trpc, captures, cookies, schemaValidator, options)
+        runResult = await runTRPCStep(step.trpc, captures, cookies, schemaValidator, options, config)
       }
 
       if (step.graphql) {
-        runResult = await runGraphQLStep(step.graphql, captures, cookies, schemaValidator, options)
+        runResult = await runGraphQLStep(step.graphql, captures, cookies, schemaValidator, options, config)
       }
 
       if (step.grpc) {
