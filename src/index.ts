@@ -288,7 +288,7 @@ async function runTest(id: string, test: Test, schemaValidator: Ajv, options?: W
     let stepResult = await tryStep()
 
     // Retries
-    if ((stepResult.errored || !stepResult.passed) && step.retries && step.retries.count > 0) {
+    if ((stepResult.errored || (!stepResult.passed && !stepResult.skipped)) && step.retries && step.retries.count > 0) {
       for (let i = 0; i < step.retries.count; i++) {
         await new Promise(resolve => {
           setTimeout(resolve, typeof step.retries?.interval === 'string' ? parseDuration(step.retries?.interval) : step.retries?.interval)
