@@ -40,20 +40,20 @@ export function checkResult (given: any, expected: Matcher[] | any) : CheckResul
 function check (given: any, expected: Matcher[] | any) : boolean {
   if (Array.isArray(expected)) {
     return expected.map((test: Matcher) => {
-      if (test.eq) return deepEqual(given, test.eq)
-      if (test.ne) return given !== test.ne
-      if (test.gt) return given > test.gt
-      if (test.gte) return given >= test.gte
-      if (test.lt) return given < test.lt
-      if (test.lte) return given <= test.lte
-      if (test.in) return given.includes(test.in)
-      if (test.nin) return !given.includes(test.nin)
-      if (test.match) return new RegExp(test.match).test(given)
+      if ('eq' in test) return deepEqual(given, test.eq, { strict: true })
+      if ('ne' in test) return given !== test.ne
+      if ('gt' in test) return given > test.gt
+      if ('gte' in test) return given >= test.gte
+      if ('lt' in test) return given < test.lt
+      if ('lte' in test) return given <= test.lte
+      if ('in' in test) return given.includes(test.in)
+      if ('nin' in test) return !given.includes(test.nin)
+      if ('match' in test) return new RegExp(test.match).test(given)
       if ('isNumber' in test) return test.isNumber ? typeof given === 'number' : typeof given !== 'number'
       if ('isString' in test) return test.isString ? typeof given === 'string' : typeof given !== 'string'
       if ('isBoolean' in test) return test.isBoolean ? typeof given === 'boolean' : typeof given !== 'boolean'
-      if ('isNull' in test) return test.isNull ? typeof given === null : typeof given !== null
-      if ('isDefined' in test) return test.isDefined ? typeof given !== undefined : typeof given === undefined
+      if ('isNull' in test) return test.isNull ? given === null : given !== null
+      if ('isDefined' in test) return test.isDefined ? typeof given !== 'undefined' : typeof given === 'undefined'
       if ('isObject' in test) return test.isObject ? typeof given === 'object' : typeof given !== 'object'
       if ('isArray' in test) return test.isArray ? Array.isArray(given) : !Array.isArray(given)
     })
