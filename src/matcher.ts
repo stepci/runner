@@ -42,12 +42,17 @@ function check (given: any, expected: Matcher[] | any) : boolean {
     return expected.map((test: Matcher) => {
       if ('eq' in test) return deepEqual(given, test.eq, { strict: true })
       if ('ne' in test) return given !== test.ne
+      // @ts-ignore is possibly 'undefined'
       if ('gt' in test) return given > test.gt
+      // @ts-ignore is possibly 'undefined'
       if ('gte' in test) return given >= test.gte
+      // @ts-ignore is possibly 'undefined'
       if ('lt' in test) return given < test.lt
+      // @ts-ignore is possibly 'undefined'
       if ('lte' in test) return given <= test.lte
       if ('in' in test) return given.includes(test.in)
       if ('nin' in test) return !given.includes(test.nin)
+      // @ts-ignore is possibly 'undefined'
       if ('match' in test) return new RegExp(test.match).test(given)
       if ('isNumber' in test) return test.isNumber ? typeof given === 'number' : typeof given !== 'number'
       if ('isString' in test) return test.isString ? typeof given === 'string' : typeof given !== 'string'
