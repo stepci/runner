@@ -1,5 +1,5 @@
 import { CookieJar, Cookie } from 'tough-cookie'
-import { renderObject } from 'liquidless'
+import { renderObject as liquidlessRenderObject } from 'liquidless'
 import { fake } from 'liquidless-faker'
 import { naughtystring } from 'liquidless-naughtystrings'
 import { EventEmitter } from 'node:events'
@@ -185,6 +185,19 @@ export type StepCheckResult = {
 
 const templateDelimiters = ['${{', '}}']
 
+function renderObject<T extends object>(
+  object: object,
+  props: object,
+): T {
+  return liquidlessRenderObject(object, props, {
+    filters: {
+      fake,
+      naughtystring
+    },
+    delimiters: templateDelimiters
+  })
+}
+
 // Run from test file
 export async function runFromYAML(yamlString: string, options?: WorkflowOptions): Promise<WorkflowResult> {
   const workflow = yaml.load(yamlString)
@@ -211,11 +224,11 @@ export async function run(workflow: Workflow, options?: WorkflowOptions): Promis
   // Templating for env, components, config
   let env = { ...workflow.env, ...options?.env }
   if (workflow.env) {
-    env = renderObject(env, { env, secrets: options?.secrets }, { delimiters: templateDelimiters })
+    env = renderObject(env, { env, secrets: options?.secrets })
   }
 
   if (workflow.components) {
-    workflow.components = renderObject(workflow.components, { env, secrets: options?.secrets }, { delimiters: templateDelimiters })
+    workflow.components = renderObject(workflow.components, { env, secrets: options?.secrets })
   }
 
   if (workflow.components?.schemas) {
@@ -223,7 +236,7 @@ export async function run(workflow: Workflow, options?: WorkflowOptions): Promis
   }
 
   if (workflow.config) {
-    workflow.config = renderObject(workflow.config, { env, secrets: options?.secrets }, { delimiters: templateDelimiters })
+    workflow.config = renderObject(workflow.config, { env, secrets: options?.secrets })
   }
 
   if (workflow.include) {
@@ -347,13 +360,6 @@ async function runStep (previous: StepResult | undefined, step: Step, id: string
         env: { ...env, ...test.env },
         secrets: options?.secrets,
         testdata: testData
-      },
-      {
-        filters: {
-          fake,
-          naughtystring
-        },
-        delimiters: templateDelimiters
       })
 
       if (step.http) {
