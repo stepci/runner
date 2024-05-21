@@ -86,8 +86,14 @@ export type HTTPStepForm = {
   [key: string]: string
 }
 
+export type HTTPRequestPart = {
+  type?: string
+  value: string
+}
+
+
 export type HTTPStepMultiPartForm = {
-  [key: string]: string | StepFile
+  [key: string]: string | StepFile | HTTPRequestPart
 }
 
 export type HTTPStepGraphQL = {
@@ -277,20 +283,27 @@ export default async function (
   if (params.formData) {
     const formData = new FormData()
     for (const field in params.formData) {
+      let appendOptions = {} as FormData.AppendOptions;
+      var value : any
       if (typeof params.formData[field] === 'string') {
-        formData.append(field, params.formData[field] as string)
-      }
-
-      if ((params.formData[field] as StepFile).file) {
+        value = params.formData[field] as string
+      } else if ((params.formData[field] as HTTPRequestPart).value) {
+        const requestPart = params.formData[field] as HTTPRequestPart
+        value = requestPart.value
+        if (requestPart.type) {
+          appendOptions.contentType = requestPart.type
+        }
+      } else if ((params.formData[field] as StepFile).file) {
+        const stepFile = params.formData[field] as StepFile
         const filepath = path.join(
           path.dirname(options?.path || __dirname),
-          (params.formData[field] as StepFile).file
+          stepFile.file
         )
 
-        const file = await fs.promises.readFile(filepath)
-        const filename = path.parse(filepath).base
-        formData.append(field, file, filename)
+        value = await fs.promises.readFile(filepath)
+        appendOptions.filename = path.parse(filepath).base
       }
+      formData.append(field, value, appendOptions)
     }
 
     requestBody = formData
