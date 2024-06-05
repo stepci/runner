@@ -261,8 +261,13 @@ export async function run(workflow: Workflow, options?: WorkflowOptions): Promis
 
   const input: Promise<TestResult>[] = []
   Object.entries(workflow.tests).map(([id, test]) => input.push(limit(() => runTest(id, test, schemaValidator, options, workflow.config, env))))
-
   testResults.push(...await Promise.all(input))
+
+  if (workflow.after) {
+    const afterResult = await runTest('after', workflow.after, schemaValidator, options, workflow.config, env)
+    testResults.push(afterResult)
+  }
+
   const workflowResult: WorkflowResult = {
     workflow,
     result: {
@@ -275,11 +280,6 @@ export async function run(workflow: Workflow, options?: WorkflowOptions): Promis
       bytesReceived: testResults.map(test => test.bytesReceived).reduce((a, b) => a + b),
     },
     path: options?.path
-  }
-
-  if (workflow.after) {
-    const afterResult = await runTest('after', workflow.after, schemaValidator, options, workflow.config, env)
-    testResults.push(afterResult)
   }
 
   options?.ee?.emit('workflow:result', workflowResult)
