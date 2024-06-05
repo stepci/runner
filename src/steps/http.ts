@@ -283,27 +283,22 @@ export default async function (
   if (params.formData) {
     const formData = new FormData()
     for (const field in params.formData) {
-      let appendOptions = {} as FormData.AppendOptions;
-      var value : any
+      const appendOptions = {} as FormData.AppendOptions
       if (typeof params.formData[field] === 'string') {
-        value = params.formData[field] as string
+        formData.append(field, params.formData[field])
       } else if ((params.formData[field] as HTTPRequestPart).value) {
         const requestPart = params.formData[field] as HTTPRequestPart
-        value = requestPart.value
-        if (requestPart.type) {
-          appendOptions.contentType = requestPart.type
-        }
+        appendOptions.contentType = requestPart.type
+        formData.append(field, requestPart.value, appendOptions)
       } else if ((params.formData[field] as StepFile).file) {
         const stepFile = params.formData[field] as StepFile
         const filepath = path.join(
           path.dirname(options?.path || __dirname),
           stepFile.file
         )
-
-        value = await fs.promises.readFile(filepath)
         appendOptions.filename = path.parse(filepath).base
+        formData.append(field, await fs.promises.readFile(filepath), appendOptions)
       }
-      formData.append(field, value, appendOptions)
     }
 
     requestBody = formData
