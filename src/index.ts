@@ -34,7 +34,9 @@ export type Workflow = {
    * @deprecated Import files using `$refs` instead.
   */
   include?: string[]
+  before?: Test
   tests: Tests
+  after?: Test
   components?: WorkflowComponents
   config?: WorkflowConfig
 }
@@ -250,10 +252,17 @@ export async function run(workflow: Workflow, options?: WorkflowOptions): Promis
   const concurrency = options?.concurrency || workflow.config?.concurrency || Object.keys(workflow.tests).length
   const limit = pLimit(concurrency <= 0 ? 1 : concurrency)
 
+  let testResults: TestResult[] = []
+
+  if (workflow.before) {
+    const beforeResult = await runTest('before', workflow.before, schemaValidator, options, workflow.config, env)
+    testResults.push(beforeResult)
+  }
+
   const input: Promise<TestResult>[] = []
   Object.entries(workflow.tests).map(([id, test]) => input.push(limit(() => runTest(id, test, schemaValidator, options, workflow.config, env))))
 
-  const testResults = await Promise.all(input)
+  testResults.push(...await Promise.all(input))
   const workflowResult: WorkflowResult = {
     workflow,
     result: {
@@ -266,6 +275,11 @@ export async function run(workflow: Workflow, options?: WorkflowOptions): Promis
       bytesReceived: testResults.map(test => test.bytesReceived).reduce((a, b) => a + b),
     },
     path: options?.path
+  }
+
+  if (workflow.after) {
+    const afterResult = await runTest('after', workflow.after, schemaValidator, options, workflow.config, env)
+    testResults.push(afterResult)
   }
 
   options?.ee?.emit('workflow:result', workflowResult)
