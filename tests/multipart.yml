@@ -1,0 +1,24 @@
+version: "1.1"
+name: Multipart
+tests:
+  multipart:
+    steps:
+      - name: Multipart
+        http:
+          url: https://httpbin.org/post
+          method: POST
+          formData:
+            foo: bar
+            jsonfield:
+              value: '{ "foo": "bar" }'
+              type: application/json
+            filefield:
+              file: example.json
+              type: application/json
+          check:
+            status: 200
+            jsonpath:
+              $.files.filefield:
+                - isNull: false
+              $.form.foo: bar
+                
