@@ -252,7 +252,7 @@ export async function run(workflow: Workflow, options?: WorkflowOptions): Promis
   const concurrency = options?.concurrency || workflow.config?.concurrency || Object.keys(workflow.tests).length
   const limit = pLimit(concurrency <= 0 ? 1 : concurrency)
 
-  let testResults: TestResult[] = []
+  const testResults: TestResult[] = []
   const captures: CapturesStorage = {}
 
   // Run `before` section
