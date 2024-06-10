@@ -253,18 +253,22 @@ export async function run(workflow: Workflow, options?: WorkflowOptions): Promis
   const limit = pLimit(concurrency <= 0 ? 1 : concurrency)
 
   let testResults: TestResult[] = []
+  const captures: CapturesStorage = {}
 
+  // Run `before` section
   if (workflow.before) {
-    const beforeResult = await runTest('before', workflow.before, schemaValidator, options, workflow.config, env)
+    const beforeResult = await runTest('before', workflow.before, schemaValidator, options, workflow.config, env, captures)
     testResults.push(beforeResult)
   }
 
+  // Run `tests` section
   const input: Promise<TestResult>[] = []
-  Object.entries(workflow.tests).map(([id, test]) => input.push(limit(() => runTest(id, test, schemaValidator, options, workflow.config, env))))
+  Object.entries(workflow.tests).map(([id, test]) => input.push(limit(() => runTest(id, test, schemaValidator, options, workflow.config, env, { ...captures }))))
   testResults.push(...await Promise.all(input))
 
+  // Run `after` section
   if (workflow.after) {
-    const afterResult = await runTest('after', workflow.after, schemaValidator, options, workflow.config, env)
+    const afterResult = await runTest('after', workflow.after, schemaValidator, options, workflow.config, env, captures)
     testResults.push(afterResult)
   }
 
@@ -286,7 +290,7 @@ export async function run(workflow: Workflow, options?: WorkflowOptions): Promis
   return workflowResult
 }
 
-async function runTest(id: string, test: Test, schemaValidator: Ajv, options?: WorkflowOptions, config?: WorkflowConfig, env?: object): Promise<TestResult> {
+async function runTest(id: string, test: Test, schemaValidator: Ajv, options?: WorkflowOptions, config?: WorkflowConfig, env?: object, capturesStorage?: CapturesStorage): Promise<TestResult> {
   const testResult: TestResult = {
     id,
     name: test.name,
@@ -299,7 +303,7 @@ async function runTest(id: string, test: Test, schemaValidator: Ajv, options?: W
     bytesReceived: 0
   }
 
-  const captures: CapturesStorage = {}
+  const captures: CapturesStorage = capturesStorage ?? {}
   const cookies = new CookieJar()
   let previous: StepResult | undefined
   let testData: object = {}
