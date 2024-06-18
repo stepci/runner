@@ -516,7 +516,7 @@ export default async function (
         for (const path in params.check.jsonpath) {
           const result = JSONPath({ path, json })
           stepResult.checks.jsonpath[path] = checkResult(
-            result[0],
+            (result.length === 1) ? result[0] : result,
             params.check.jsonpath[path]
           )
         }
