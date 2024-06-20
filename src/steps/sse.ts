@@ -216,7 +216,7 @@ export default async function (
                 .map((c: CheckResult) => c.passed)
                 .every((passed) => passed)
 
-              if (passed && stepResult.checks?.messages)
+              if (stepResult.checks?.messages)
                 (stepResult.checks.messages as CheckResults)[check.id] = {
                   expected: check.jsonpath,
                   given: jsonpathResult,
