@@ -153,15 +153,6 @@ export default async function (
     ev.onmessage = (message) => {
       messages.push(message)
 
-      // Mark message as received
-      expectedMessages?.delete(message.lastEventId)
-      // If all expected messages have been received, close connection and return as "passed"
-      if (expectedMessages?.size === 0) {
-        // console.debug('All expected messages received, closing connection…')
-        clearTimeout(timeout)
-        end()
-      }
-
       if (params.check) {
         params.check.messages?.forEach((check, id) => {
           // Don't run check if it's not intended for this message
@@ -227,6 +218,15 @@ export default async function (
             }
           }
         })
+      }
+
+      // Mark message as received
+      expectedMessages?.delete(message.lastEventId)
+      // If all expected messages have been received, close connection and return as "passed"
+      if (expectedMessages?.size === 0) {
+        // console.debug('All expected messages received, closing connection…')
+        clearTimeout(timeout)
+        end()
       }
     }
   })
