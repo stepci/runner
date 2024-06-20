@@ -109,7 +109,7 @@ export default async function (
     }
 
     const timeout = setTimeout(() => {
-      console.debug(`SSE timed out`)
+      console.debug('SSE timed out')
       end()
     }, params.timeout || 10000)
 
