@@ -164,6 +164,9 @@ export default async function (
 
       if (params.check) {
         params.check.messages?.forEach((check, id) => {
+          // Don't run check if it's not intended for this message
+          if (check.id !== message.lastEventId) return
+
           if (check.body) {
             const result = checkResult(message.data, check.body)
             if (result.passed && stepResult.checks?.messages)
