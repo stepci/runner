@@ -91,7 +91,7 @@ export default async function (
       : undefined
 
     // Closes the `EventSource` and exits as "passed"
-    function end () {
+    const end = () => {
       ev.close()
 
       const messagesBuffer = Buffer.from(messages.map((m) => m.data).join('\n'))
