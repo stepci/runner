@@ -289,7 +289,7 @@ export default async function (
     const formData = new FormData()
     for (const field in params.formData) {
       const appendOptions = {} as FormData.AppendOptions
-      if (typeof params.formData[field] === 'string') {
+      if (typeof params.formData[field] != 'object') {
         formData.append(field, params.formData[field])
       } else if ((params.formData[field] as StepFile).file) {
         const stepFile = params.formData[field] as StepFile
