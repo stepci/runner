@@ -15,6 +15,10 @@ tests:
               json:
                 foo: bar
                 bar: foo
+            jsonfieldarray:
+              json:
+                - foo1: bar1
+                - foo2: bar2
             filefield:
               file: example.json
               type: application/json
@@ -26,4 +30,4 @@ tests:
               $.form.foo: bar
               $.form.bar: jane
               $.form.jsonfield: '{"foo":"bar","bar":"foo"}'
-                
+              $.form.jsonfieldarray: '[{"foo1":"bar1"},{"foo2":"bar2"}]'

@@ -92,11 +92,6 @@ export type HTTPRequestPart = {
   json?: object
 }
 
-export type HTTPRequestPartJson = {
-  json: object
-}
-
-
 export type HTTPStepMultiPartForm = {
   [key: string]: string | StepFile | HTTPRequestPart
 }
@@ -301,7 +296,7 @@ export default async function (
         formData.append(field, await fs.promises.readFile(filepath), appendOptions)
       } else {
         const requestPart = params.formData[field] as HTTPRequestPart
-        if (requestPart.json) {
+        if (requestPart.json != null) {
           appendOptions.contentType = 'application/json'
           formData.append(field, JSON.stringify(requestPart.json), appendOptions)
         } else {
