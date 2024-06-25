@@ -422,7 +422,7 @@ export default async function (
       if (capture.jsonpath) {
         try {
           const json = JSON.parse(body)
-          captures[name] = JSONPath({ path: capture.jsonpath, json })[0]
+          captures[name] = JSONPath({ path: capture.jsonpath, json, wrap: false })
         } catch {
           captures[name] = undefined
         }
@@ -514,9 +514,9 @@ export default async function (
       try {
         const json = JSON.parse(body)
         for (const path in params.check.jsonpath) {
-          const result = JSONPath({ path, json })
+          const result = JSONPath({ path, json, wrap: false })
           stepResult.checks.jsonpath[path] = checkResult(
-            result[0],
+            result,
             params.check.jsonpath[path]
           )
         }
