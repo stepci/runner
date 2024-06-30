@@ -9,9 +9,16 @@ tests:
           method: POST
           formData:
             foo: bar
+            bar:
+              value: jane
             jsonfield:
-              value: '{ "foo": "bar" }'
-              type: application/json
+              json:
+                foo: bar
+                bar: foo
+            jsonfieldarray:
+              json:
+                - foo1: bar1
+                - foo2: bar2
             filefield:
               file: example.json
               type: application/json
@@ -21,4 +28,6 @@ tests:
               $.files.filefield:
                 - isNull: false
               $.form.foo: bar
-                
+              $.form.bar: jane
+              $.form.jsonfield: '{"foo":"bar","bar":"foo"}'
+              $.form.jsonfieldarray: '[{"foo1":"bar1"},{"foo2":"bar2"}]'
