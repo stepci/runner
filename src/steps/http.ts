@@ -286,6 +286,20 @@ export default async function (
       const appendOptions = {} as FormData.AppendOptions
       if (typeof params.formData[field] != 'object') {
         formData.append(field, params.formData[field])
+      } else if (Array.isArray(params.formData[field])) {
+        const stepFiles = params.formData[field] as StepFile[];
+        for (const stepFile of stepFiles) {
+          const filepath = path.join(
+            path.dirname(options?.path || __dirname),
+            stepFile.file,
+          )
+          appendOptions.filename = path.parse(filepath).base;
+          formData.append(
+            field,
+            await fs.promises.readFile(filepath),
+            appendOptions,
+          )
+        }
       } else if ((params.formData[field] as StepFile).file) {
         const stepFile = params.formData[field] as StepFile
         const filepath = path.join(
