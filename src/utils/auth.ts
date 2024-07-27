@@ -1,6 +1,10 @@
 import got from 'got'
 import { StepFile, TryFileOptions, tryFile } from './files'
 
+enum OauthContentType {
+  JSON = 'application/json',
+  FORM = 'application/x-www-form-urlencoded'
+}
 export type Credential = {
   basic?: {
     username: string
@@ -14,6 +18,8 @@ export type Credential = {
     client_id: string
     client_secret: string
     audience?: string
+    scope?: string
+    contentType?: OauthContentType
   }
   certificate?: {
     ca?: string | StepFile
@@ -37,6 +43,8 @@ type OAuthClientConfig = {
   client_id: string
   client_secret: string
   audience?: string
+  scope?: string
+  contentType?: OauthContentType
 }
 
 export type OAuthResponse = {
@@ -58,22 +66,38 @@ export type TLSCertificate = {
   certChain?: string | Buffer
 }
 
-export async function getOAuthToken (clientConfig: OAuthClientConfig): Promise<OAuthResponse> {
+export async function getOAuthToken(clientConfig: OAuthClientConfig): Promise<OAuthResponse> {
+  let contentType = OauthContentType.JSON
+  let body = ''
+  let authObject: {[key: string]: any} = {
+    grant_type: 'client_credentials',
+    client_id: clientConfig.client_id,
+    client_secret: clientConfig.client_secret,
+    audience: clientConfig.audience,
+    scope: clientConfig.scope
+  }
+  if (clientConfig.contentType === OauthContentType.FORM) {
+    contentType = clientConfig.contentType
+    let authParams = new URLSearchParams()
+    for (const key in authObject) {
+      if(authObject[key]){
+        authParams.append(key, authObject[key])
+      }
+    }
+    body = authParams.toString()
+  } else {
+    body = JSON.stringify(authObject)
+  }
   return await got.post(clientConfig.endpoint, {
     headers: {
-      'Content-Type': 'application/json'
+      'Content-Type': contentType
     },
-    body: JSON.stringify({
-      grant_type: 'client_credentials',
-      client_id: clientConfig.client_id,
-      client_secret: clientConfig.client_secret,
-      audience: clientConfig.audience
-    })
+    body: body
   })
-  .json() as OAuthResponse
+    .json() as OAuthResponse
 }
 
-export async function getAuthHeader (credential: Credential): Promise<string | undefined> {
+export async function getAuthHeader(credential: Credential): Promise<string | undefined> {
   if (credential.basic) {
     return 'Basic ' + Buffer.from(credential.basic.username + ':' + credential.basic.password).toString('base64')
   }
@@ -88,7 +112,7 @@ export async function getAuthHeader (credential: Credential): Promise<string | u
   }
 }
 
-export async function getClientCertificate (certificate: Credential['certificate'], options?: TryFileOptions): Promise<HTTPCertificate | undefined> {
+export async function getClientCertificate(certificate: Credential['certificate'], options?: TryFileOptions): Promise<HTTPCertificate | undefined> {
   if (certificate) {
     const cert: HTTPCertificate = {}
 
@@ -112,7 +136,7 @@ export async function getClientCertificate (certificate: Credential['certificate
   }
 }
 
-export async function getTLSCertificate (certificate: Credential['tls'], options?: TryFileOptions): Promise<TLSCertificate | undefined> {
+export async function getTLSCertificate(certificate: Credential['tls'], options?: TryFileOptions): Promise<TLSCertificate | undefined> {
   if (certificate) {
     const tlsConfig: TLSCertificate = {}
 
