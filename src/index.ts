@@ -131,6 +131,10 @@ export type StepCheckJSONPath = {
   [key: string]: any
 }
 
+export type StepCheckJSONata = {
+  [key: string]: any
+}
+
 export type StepCheckPerformance = {
   [key: string]: number
 }

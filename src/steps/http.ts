@@ -25,6 +25,7 @@ import {
 import {
   StepCheckCaptures,
   StepCheckJSONPath,
+  StepCheckJSONata,
   StepCheckMatcher,
   StepCheckPerformance,
   StepCheckValue,
@@ -33,6 +34,7 @@ import {
   WorkflowOptions,
 } from '..'
 import { Matcher, checkResult } from '../matcher'
+import jsonata from 'jsonata'
 
 export type HTTPStepBase = {
   url: string
@@ -125,6 +127,7 @@ export type HTTPStepCheck = {
   json?: object
   schema?: object
   jsonpath?: StepCheckJSONPath | StepCheckMatcher
+  jsonata?: StepCheckJSONata | StepCheckMatcher
   xpath?: StepCheckValue | StepCheckMatcher
   selectors?: StepCheckValue | StepCheckMatcher
   cookies?: StepCheckValue | StepCheckMatcher
@@ -543,6 +546,30 @@ export default async function (
         for (const path in params.check.jsonpath) {
           stepResult.checks.jsonpath[path] = {
             expected: params.check.jsonpath[path],
+            given: body,
+            passed: false,
+          }
+        }
+      }
+    }
+
+    // Check JSONata
+    if (params.check.jsonata) {
+      stepResult.checks.jsonata = {}
+      try {
+        const json = JSON.parse(body)
+        for (const path in params.check.jsonata) {
+          const expression = jsonata(params.check.jsonata[path])
+          stepResult.checks.jsonata[path] = {
+            expected: params.check.jsonata[path],
+            given: body,
+            passed: Boolean(await expression.evaluate(json)),
+          }
+        }
+      } catch {
+        for (const path in params.check.jsonata) {
+          stepResult.checks.jsonata[path] = {
+            expected: params.check.jsonata[path],
             given: body,
             passed: false,
           }
