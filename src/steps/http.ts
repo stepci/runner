@@ -127,7 +127,7 @@ export type HTTPStepCheck = {
   json?: object
   schema?: object
   jsonpath?: StepCheckJSONPath | StepCheckMatcher
-  jsonata?: StepCheckJSONata | StepCheckMatcher
+  jsonata?: StepCheckJSONata
   xpath?: StepCheckValue | StepCheckMatcher
   selectors?: StepCheckValue | StepCheckMatcher
   cookies?: StepCheckValue | StepCheckMatcher
@@ -562,10 +562,11 @@ export default async function (
           const value = params.check.jsonata[path]
           const expression = jsonata(value)
           const result = await expression.evaluate(json)
+          const { expected, given, passed } = result
           stepResult.checks.jsonata[path] = {
-            expected: result.hasOwnProperty('expected') ? result.expected : value,
-            given: result.hasOwnProperty('given') ? result.given : json,
-            passed: Boolean(result.hasOwnProperty('passed') ? result.passed : result),
+            expected: expected !== undefined ? expected : value,
+            given: given !== undefined ? given : json,
+            passed: passed !== undefined ? passed : !!result
           }
         }
       } catch {
