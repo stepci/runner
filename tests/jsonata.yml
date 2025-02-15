@@ -7,6 +7,9 @@ tests:
         http:
           url: https://httpbin.org/ip
           method: GET
+          captures:
+            ip:
+              jsonata: origin
           check:
             status: 200
             jsonata:
