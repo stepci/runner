@@ -562,7 +562,7 @@ export default async function (
           const expression = jsonata(params.check.jsonata[path])
           stepResult.checks.jsonata[path] = {
             expected: params.check.jsonata[path],
-            given: body,
+            given: '<body>',
             passed: Boolean(await expression.evaluate(json)),
           }
         }
@@ -570,7 +570,7 @@ export default async function (
         for (const path in params.check.jsonata) {
           stepResult.checks.jsonata[path] = {
             expected: params.check.jsonata[path],
-            given: body,
+            given: '<body>',
             passed: false,
           }
         }
