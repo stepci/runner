@@ -110,6 +110,7 @@ export type HTTPStepCaptures = {
 export type HTTPStepCapture = {
   xpath?: string
   jsonpath?: string
+  jsonata?: string
   header?: string
   selector?: string
   cookie?: string
@@ -445,6 +446,16 @@ export default async function (
         try {
           const json = JSON.parse(body)
           captures[name] = JSONPath({ path: capture.jsonpath, json, wrap: false })
+        } catch {
+          captures[name] = undefined
+        }
+      }
+
+      if (capture.jsonata) {
+        try {
+          const json = JSON.parse(body)
+          const expression = jsonata(capture.jsonata)
+          captures[name] = await expression.evaluate(json)
         } catch {
           captures[name] = undefined
         }
