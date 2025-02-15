@@ -127,7 +127,7 @@ export type HTTPStepCheck = {
   json?: object
   schema?: object
   jsonpath?: StepCheckJSONPath | StepCheckMatcher
-  jsonata?: StepCheckJSONata | StepCheckMatcher
+  jsonata?: StepCheckJSONata
   xpath?: StepCheckValue | StepCheckMatcher
   selectors?: StepCheckValue | StepCheckMatcher
   cookies?: StepCheckValue | StepCheckMatcher
