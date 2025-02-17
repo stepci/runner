@@ -291,17 +291,17 @@ export default async function (
       if (typeof params.formData[field] != 'object') {
         formData.append(field, params.formData[field])
       } else if (Array.isArray(params.formData[field])) {
-        const stepFiles = params.formData[field] as StepFile[];
+        const stepFiles = params.formData[field] as StepFile[]
         for (const stepFile of stepFiles) {
           const filepath = path.join(
             path.dirname(options?.path || __dirname),
-            stepFile.file,
+            stepFile.file
           )
-          appendOptions.filename = path.parse(filepath).base;
+          appendOptions.filename = path.parse(filepath).base
           formData.append(
             field,
             await fs.promises.readFile(filepath),
-            appendOptions,
+            appendOptions
           )
         }
       } else if ((params.formData[field] as StepFile).file) {
@@ -311,12 +311,20 @@ export default async function (
           stepFile.file
         )
         appendOptions.filename = path.parse(filepath).base
-        formData.append(field, await fs.promises.readFile(filepath), appendOptions)
+        formData.append(
+          field,
+          await fs.promises.readFile(filepath),
+          appendOptions
+        )
       } else {
         const requestPart = params.formData[field] as HTTPRequestPart
         if ('json' in requestPart) {
           appendOptions.contentType = 'application/json'
-          formData.append(field, JSON.stringify(requestPart.json), appendOptions)
+          formData.append(
+            field,
+            JSON.stringify(requestPart.json),
+            appendOptions
+          )
         } else {
           appendOptions.contentType = requestPart.type
           formData.append(field, requestPart.value, appendOptions)
@@ -445,7 +453,11 @@ export default async function (
       if (capture.jsonpath) {
         try {
           const json = JSON.parse(body)
-          captures[name] = JSONPath({ path: capture.jsonpath, json, wrap: false })
+          captures[name] = JSONPath({
+            path: capture.jsonpath,
+            json,
+            wrap: false,
+          })
         } catch {
           captures[name] = undefined
         }
@@ -567,17 +579,24 @@ export default async function (
     // Check JSONata
     if (params.check.jsonata) {
       stepResult.checks.jsonata = {}
+      async function evalJSONata(expression: string, json: any) {
+        try {
+          return await jsonata(expression).evaluate(json)
+        } catch {
+          return json
+        }
+      }
       try {
         const json = JSON.parse(body)
         for (const path in params.check.jsonata) {
-          const value = params.check.jsonata[path]
-          const expression = jsonata(value)
-          const result = await expression.evaluate(json)
-          const { expected, given, passed } = result
+          const expression = params.check.jsonata[path]
+          const value = path.match(/^\$/) ? await evalJSONata(path, json) : json
+          const result = await evalJSONata(expression, value)
+          const { expected, given, passed } = result || {}
           stepResult.checks.jsonata[path] = {
-            expected: expected !== undefined ? expected : value,
-            given: given !== undefined ? given : json,
-            passed: passed !== undefined ? passed : !!result
+            expected: expected !== undefined ? expected : expression,
+            given: given !== undefined ? given : value,
+            passed: passed !== undefined ? passed : !!result,
           }
         }
       } catch {
