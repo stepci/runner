@@ -25,6 +25,7 @@ import {
 import {
   StepCheckCaptures,
   StepCheckJSONPath,
+  StepCheckJSONata,
   StepCheckMatcher,
   StepCheckPerformance,
   StepCheckValue,
@@ -33,6 +34,7 @@ import {
   WorkflowOptions,
 } from '..'
 import { Matcher, checkResult } from '../matcher'
+import jsonata from 'jsonata'
 
 export type HTTPStepBase = {
   url: string
@@ -108,6 +110,7 @@ export type HTTPStepCaptures = {
 export type HTTPStepCapture = {
   xpath?: string
   jsonpath?: string
+  jsonata?: string
   header?: string
   selector?: string
   cookie?: string
@@ -125,6 +128,7 @@ export type HTTPStepCheck = {
   json?: object
   schema?: object
   jsonpath?: StepCheckJSONPath | StepCheckMatcher
+  jsonata?: StepCheckJSONata
   xpath?: StepCheckValue | StepCheckMatcher
   selectors?: StepCheckValue | StepCheckMatcher
   cookies?: StepCheckValue | StepCheckMatcher
@@ -287,17 +291,17 @@ export default async function (
       if (typeof params.formData[field] != 'object') {
         formData.append(field, params.formData[field])
       } else if (Array.isArray(params.formData[field])) {
-        const stepFiles = params.formData[field] as StepFile[];
+        const stepFiles = params.formData[field] as StepFile[]
         for (const stepFile of stepFiles) {
           const filepath = path.join(
             path.dirname(options?.path || __dirname),
-            stepFile.file,
+            stepFile.file
           )
-          appendOptions.filename = path.parse(filepath).base;
+          appendOptions.filename = path.parse(filepath).base
           formData.append(
             field,
             await fs.promises.readFile(filepath),
-            appendOptions,
+            appendOptions
           )
         }
       } else if ((params.formData[field] as StepFile).file) {
@@ -307,12 +311,20 @@ export default async function (
           stepFile.file
         )
         appendOptions.filename = path.parse(filepath).base
-        formData.append(field, await fs.promises.readFile(filepath), appendOptions)
+        formData.append(
+          field,
+          await fs.promises.readFile(filepath),
+          appendOptions
+        )
       } else {
         const requestPart = params.formData[field] as HTTPRequestPart
         if ('json' in requestPart) {
           appendOptions.contentType = 'application/json'
-          formData.append(field, JSON.stringify(requestPart.json), appendOptions)
+          formData.append(
+            field,
+            JSON.stringify(requestPart.json),
+            appendOptions
+          )
         } else {
           appendOptions.contentType = requestPart.type
           formData.append(field, requestPart.value, appendOptions)
@@ -441,7 +453,21 @@ export default async function (
       if (capture.jsonpath) {
         try {
           const json = JSON.parse(body)
-          captures[name] = JSONPath({ path: capture.jsonpath, json, wrap: false })
+          captures[name] = JSONPath({
+            path: capture.jsonpath,
+            json,
+            wrap: false,
+          })
+        } catch {
+          captures[name] = undefined
+        }
+      }
+
+      if (capture.jsonata) {
+        try {
+          const json = JSON.parse(body)
+          const expression = jsonata(capture.jsonata)
+          captures[name] = await expression.evaluate(json)
         } catch {
           captures[name] = undefined
         }
@@ -544,6 +570,40 @@ export default async function (
           stepResult.checks.jsonpath[path] = {
             expected: params.check.jsonpath[path],
             given: body,
+            passed: false,
+          }
+        }
+      }
+    }
+
+    // Check JSONata
+    if (params.check.jsonata) {
+      stepResult.checks.jsonata = {}
+      async function evalJSONata(expression: string, json: any) {
+        try {
+          return await jsonata(expression).evaluate(json)
+        } catch {
+          return json
+        }
+      }
+      try {
+        const json = JSON.parse(body)
+        for (const path in params.check.jsonata) {
+          const expression = params.check.jsonata[path]
+          const value = path.match(/^\$/) ? await evalJSONata(path, json) : json
+          const result = await evalJSONata(expression, value)
+          const { expected, given, passed } = result || {}
+          stepResult.checks.jsonata[path] = {
+            expected: expected !== undefined ? expected : expression,
+            given: given !== undefined ? given : value,
+            passed: passed !== undefined ? passed : !!result,
+          }
+        }
+      } catch {
+        for (const path in params.check.jsonata) {
+          stepResult.checks.jsonata[path] = {
+            expected: params.check.jsonata[path],
+            given: '<body>',
             passed: false,
           }
         }
