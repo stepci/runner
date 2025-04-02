@@ -8,7 +8,7 @@ export default async function (params: string | number) {
 
   stepResult.type = 'delay'
   await new Promise((resolve) =>
-    setTimeout(resolve, typeof params === 'string' ? parseDuration(params) : params)
+    setTimeout(resolve, typeof params === 'string' ? (parseDuration(params) ?? undefined) : params)
   )
 
   return stepResult
