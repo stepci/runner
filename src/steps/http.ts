@@ -364,7 +364,7 @@ export default async function (
     followRedirect: params.followRedirects ?? true,
     timeout:
       typeof params.timeout === 'string'
-        ? parseDuration(params.timeout)
+        ? (parseDuration(params.timeout) ?? undefined)
         : params.timeout,
     retry: params.retries ?? 0,
     cookieJar: cookies,

@@ -129,7 +129,7 @@ export default async function (
         options?.ee?.emit('step:grpc_response', res)
       },
       options: {
-        deadline: typeof params.timeout === 'string' ? parseDuration(params.timeout) : params.timeout
+        deadline: typeof params.timeout === 'string' ? (parseDuration(params.timeout) ?? undefined) : params.timeout
       }
     }
   )
